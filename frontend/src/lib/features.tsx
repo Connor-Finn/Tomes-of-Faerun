@@ -11,8 +11,8 @@ export interface Feature {
 
 /** The product roadmap, shown on the home page. */
 export const FEATURES: Feature[] = [
-  { key: "characters", title: "Character builder", icon: <ShieldIcon />, status: "soon",
-    blurb: "Roll stats, pick a race, class and background, and get a full character sheet." },
+  { key: "characters", title: "Character builder", icon: <ShieldIcon />, status: "live",
+    blurb: "Pick a race, class and background with every rule checked, and get a full character sheet." },
   { key: "bestiary", title: "Bestiary", icon: <DragonIcon />, status: "soon",
     blurb: "Search every SRD monster by challenge rating, type and environment." },
   { key: "spells", title: "Spells & spellbook", icon: <SparkleIcon />, status: "soon",

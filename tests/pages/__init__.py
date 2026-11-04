@@ -6,7 +6,7 @@ changes you fix ONE class instead of fifty tests.
 from .login_page import LoginPage
 from .signup_page import SignupPage
 from .guild_hall_page import GuildHallPage, TomePage
-from .character_pages import CharacterPage, CreateCharacterPage, MyCharactersPage
+from .character_pages import BuilderPage, CharacterPage, CreateCharacterPage, MyCharactersPage
 
 __all__ = ["LoginPage", "SignupPage", "GuildHallPage", "TomePage", "MyCharactersPage", "CreateCharacterPage",
-           "CharacterPage"]
+           "CharacterPage", "BuilderPage"]
