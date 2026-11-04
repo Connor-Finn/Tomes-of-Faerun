@@ -1,0 +1,36 @@
+{
+  "id": "human-fighter",
+  "name": "Aldric Vane",
+  "summary": "A sturdy sword-and-board fighter. A good first character: high armour class, simple choices, and no spells to manage.",
+  "level": 1,
+  "race": "human",
+  "class": "fighter",
+  "background": "acolyte",
+  "alignment": "lawful-good",
+  "ability_scores": {
+    "method": "standard-array",
+    "base": { "str": 15, "dex": 13, "con": 14, "int": 8, "wis": 12, "cha": 10 }
+  },
+  "choices": {
+    "class_skills": ["skill-athletics", "skill-perception"],
+    "fighting_style": "fighter-fighting-style-dueling",
+    "race_languages": ["dwarvish"],
+    "background_languages": ["celestial", "elvish"],
+    "starting_equipment": [
+      { "option": "(a) chain mail", "items": [{ "index": "chain-mail", "quantity": 1 }] },
+      { "option": "(a) a martial weapon and a shield", "items": [{ "index": "longsword", "quantity": 1 }, { "index": "shield", "quantity": 1 }] },
+      { "option": "(a) a light crossbow and 20 bolts", "items": [{ "index": "crossbow-light", "quantity": 1 }, { "index": "crossbow-bolt", "quantity": 20 }] },
+      { "option": "(a) a dungeoneer's pack", "items": [{ "index": "dungeoneers-pack", "quantity": 1 }] },
+      { "option": "Acolyte holy symbol", "items": [{ "index": "emblem", "quantity": 1 }] }
+    ]
+  },
+  "equipped": { "armor": "chain-mail", "shield": "shield", "main_hand": "longsword" },
+  "gold": 15,
+  "notes": {
+    "personality": "Speaks plainly and keeps every promise, however small.",
+    "ideal": "Protection. The strong should shield those who cannot shield themselves.",
+    "bond": "The temple that raised him, and the old priest who taught him to hold a sword.",
+    "flaw": "Trusts anyone wearing a holy symbol a little too quickly.",
+    "backstory": "Raised as a temple acolyte, Aldric spent more time in the training yard than at prayer. He left to guard pilgrims on the roads and never quite went back."
+  }
+}
