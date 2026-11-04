@@ -149,6 +149,16 @@ def user_api(playwright: Playwright, base_url: str, user: dict) -> APIRequestCon
     ctx.dispose()
 
 
+@pytest.fixture
+def other_api(playwright: Playwright, base_url: str, create_user) -> APIRequestContext:
+    """A second, unrelated player, for checking that nobody can see or change your things."""
+    someone = create_user()
+    ctx = playwright.request.new_context(base_url=base_url, extra_http_headers=API_HEADERS)
+    assert ctx.post("/api/auth/login", data={"email": someone["email"], "password": someone["password"]}).ok
+    yield ctx
+    ctx.dispose()
+
+
 # ---------------------------------------------------------------------------
 # Logged-in pages
 # ---------------------------------------------------------------------------

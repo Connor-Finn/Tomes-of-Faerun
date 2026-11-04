@@ -36,11 +36,10 @@ export function App() {
         <Route path="guild-hall" element={<RequireAuth><GuildHall /></RequireAuth>} />
         <Route path="dashboard" element={<Navigate to="/guild-hall" replace />} />
         {SECTIONS.map((s) => (
-          <Route
-            key={s.key}
-            path={`${s.path}/:page?`}
-            element={<RequireAuth><SectionTome section={s} /></RequireAuth>}
-          />
+          <Route key={s.key} path={s.path}>
+            <Route path=":page?" element={<RequireAuth><SectionTome section={s} /></RequireAuth>} />
+            <Route path=":page/:sub" element={<RequireAuth><SectionTome section={s} /></RequireAuth>} />
+          </Route>
         ))}
 
         {/* Each character is its own tome */}

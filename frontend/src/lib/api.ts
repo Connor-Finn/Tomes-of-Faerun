@@ -24,7 +24,7 @@ export interface User {
   created_at: string;
 }
 
-type Method = "GET" | "POST" | "PATCH" | "DELETE";
+type Method = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
 async function request<T>(method: Method, url: string, body?: unknown): Promise<ApiResult<T>> {
   // The custom header is our CSRF protection: other websites can't add it to a request.
@@ -52,6 +52,7 @@ async function request<T>(method: Method, url: string, body?: unknown): Promise<
 export const api = {
   get: <T>(url: string) => request<T>("GET", url),
   post: <T>(url: string, body: unknown = {}) => request<T>("POST", url, body),
+  put: <T>(url: string, body?: unknown) => request<T>("PUT", url, body),
   patch: <T>(url: string, body: unknown) => request<T>("PATCH", url, body),
   delete: <T>(url: string, body?: unknown) => request<T>("DELETE", url, body),
 };

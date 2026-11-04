@@ -185,10 +185,26 @@ export const SECTIONS: SectionDef[] = [
         title: "Bestiary",
         summary: "Every monster in the System Reference Document.",
         plans: [
-          "Search by challenge rating and creature type.",
-          "Save monsters into collections, such as “Warlock boss dungeon”.",
-          "Tag monsters as minions or bosses and add collections to a campaign's encounters.",
+          "Search by name, challenge rating, size and creature type.",
+          "Read each monster's full stat block.",
+          "Save monsters into collections and sort them into environments.",
         ],
+      },
+      {
+        slug: "collections",
+        title: "Monster collections",
+        summary: "Your own groups of monsters, such as “Warlock boss dungeon”.",
+        plans: [
+          "Tag each monster as a minion, an elite or the boss, and say how many there are.",
+          "See the total XP of everything in a collection.",
+          "Later: add collections to a campaign's encounters.",
+        ],
+      },
+      {
+        slug: "environments",
+        title: "Environments",
+        summary: "Where your monsters live. The SRD doesn't say, so you decide.",
+        plans: ["Make environments such as “Underdark” and filter the bestiary by them."],
       },
       {
         slug: "equipment",

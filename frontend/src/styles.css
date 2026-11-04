@@ -602,6 +602,67 @@ form[role=search] { display: flex; max-width: 520px; }
 .todo-list { margin: 0; padding-left: 1.2rem; }
 .link-button { font: inherit; color: var(--wax); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; }
 
+/* ---------- Bestiary ---------- */
+.back-link { display: inline-block; margin-bottom: 0.8rem; font-family: var(--font-fell); }
+form.bestiary-filters { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0.4rem 0.9rem; max-width: none; margin-top: 1rem; }
+form.bestiary-filters .field.wide { grid-column: 1 / -1; }
+.bestiary-status { margin-top: 0.6rem; }
+.bestiary-status p { margin: 0; }
+.monster-table td, .monster-table th { padding: 0.45rem 0.5rem; }
+.monster-table .num { text-align: right; }
+.monster-name { font-family: var(--font-fell); font-size: 1.1rem; }
+.pager { margin-top: 1rem; }
+
+.stat-block { max-width: 46rem; }
+.stat-block header .page-title { margin-bottom: 0.1rem; color: var(--wax-dark); font-variant: small-caps; letter-spacing: 0.02em; }
+.creature-line { font-style: italic; margin: 0; }
+hr.tapered { height: 4px; margin: 0.7rem 0; border: 0; background: linear-gradient(to right, var(--wax), rgba(143, 42, 32, 0.15)); clip-path: polygon(0 0, 100% 50%, 0 100%); }
+.stat-lines { margin: 0; }
+.stat-lines > div { display: flex; gap: 0.4rem; margin: 0.15rem 0; }
+.stat-lines dt { font-weight: 700; color: var(--wax-dark); white-space: nowrap; }
+.stat-lines dd { margin: 0; }
+.monster-abilities { max-width: 30rem; }
+.monster-abilities th, .monster-abilities td { text-align: center; border: 0; padding: 0.15rem 0.3rem; }
+.monster-abilities th { font-weight: 700; color: var(--wax-dark); font-family: var(--font-body); }
+.stat-heading { margin: 1.2rem 0 0.5rem; font-variant: small-caps; font-size: 1.35rem; color: var(--wax-dark); border-bottom: 1px solid var(--wax); padding-bottom: 0.1rem; }
+.stat-section p { margin: 0 0 0.6rem; }
+.ability-title { font-style: italic; }
+.ability-more { padding-left: 1rem; }
+.monster-desc { font-style: italic; margin-top: 0.8rem; }
+
+.save-panel { margin-top: 1.8rem; display: grid; gap: 0.4rem; padding: 0.4rem 1.2rem 1.2rem; border: 1px dashed rgba(95, 65, 30, 0.45); border-radius: 3px; background: rgba(255, 250, 236, 0.28); }
+.save-form { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0.4rem 0.9rem; align-items: end; }
+.save-form .btn { justify-self: start; }
+.save-form .field-error { grid-column: 1 / -1; }
+.saved-in { list-style: none; padding: 0; margin: 0 0 0.8rem; display: grid; gap: 0.3rem; }
+.env-checks { border: 0; padding: 0; margin: 0 0 0.6rem; display: flex; flex-wrap: wrap; gap: 0.3rem 1.2rem; }
+.inline-form { align-items: end; }
+.inline-form input { width: auto; flex: 1 1 14rem; }
+.field.grow { flex: 1 1 16rem; }
+
+.pill.role-boss { color: var(--wax); }
+.pill.role-elite { color: #8a6420; }
+.pill.role-minion { color: var(--moss); }
+.pill.role-none { color: var(--ink-muted); }
+.role-tally { display: inline-flex; flex-wrap: wrap; gap: 0.35rem; }
+
+.collection-list, .environment-list { list-style: none; margin: 1.2rem 0 0; padding: 0; display: grid; gap: 0.8rem; }
+.collection-card, .environment-card { padding: 0.9rem 1rem; border-radius: 3px; background: rgba(255, 250, 236, 0.4); border: 1px solid rgba(95, 65, 30, 0.3); box-shadow: 0 1px 3px rgba(60, 35, 10, 0.2); }
+.collection-card p, .environment-card p { margin: 0.15rem 0 0.4rem; }
+.collection-name { font-family: var(--font-display); font-size: 1.3rem; }
+.environment-name { margin: 0; font-size: 1.3rem; }
+.environment-monsters { list-style: none; padding: 0; margin: 0.4rem 0 0; }
+.env-monster { display: inline-flex; align-items: baseline; gap: 0.4rem; padding: 0.1rem 0.6rem; border-radius: 999px; border: 1px solid rgba(95, 65, 30, 0.35); background: rgba(255, 250, 236, 0.45); }
+
+.role-group .leaf-heading { margin-top: 1.4rem; }
+.entry-list { list-style: none; padding: 0; margin: 0; }
+.entry { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 0.4rem 1rem; padding: 0.5rem 0.2rem; border-bottom: 1px dotted var(--line); }
+.entry-main { display: grid; }
+.entry-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; }
+label.compact { white-space: nowrap; display: inline-flex; align-items: center; gap: 0.35rem; font-weight: 400; font-size: 0.9rem; color: var(--muted); }
+label.compact input { width: 4.2rem; }
+label.compact select { width: auto; }
+
 @media (max-width: 760px) {
   .builder { padding: 1.2rem 1rem; }
   .builder-actions { justify-items: start; text-align: left; }

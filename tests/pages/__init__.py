@@ -7,6 +7,8 @@ from .login_page import LoginPage
 from .signup_page import SignupPage
 from .guild_hall_page import GuildHallPage, TomePage
 from .character_pages import BuilderPage, CharacterPage, CreateCharacterPage, MyCharactersPage
+from .bestiary_pages import BestiaryPage, CollectionPage, CollectionsPage, EnvironmentsPage, MonsterPage
 
 __all__ = ["LoginPage", "SignupPage", "GuildHallPage", "TomePage", "MyCharactersPage", "CreateCharacterPage",
-           "CharacterPage", "BuilderPage"]
+           "CharacterPage", "BuilderPage", "BestiaryPage", "MonsterPage", "CollectionsPage", "CollectionPage",
+           "EnvironmentsPage"]

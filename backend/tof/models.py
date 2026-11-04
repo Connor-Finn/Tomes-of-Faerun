@@ -47,6 +47,8 @@ class User(db.Model):
 
     tokens: Mapped[list[Token]] = relationship(back_populates="user", cascade="all, delete-orphan")
     characters: Mapped[list[Character]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    monster_collections: Mapped[list[MonsterCollection]] = relationship(cascade="all, delete-orphan")
+    environments: Mapped[list[Environment]] = relationship(cascade="all, delete-orphan")
 
     @property
     def is_admin(self) -> bool:
@@ -146,3 +148,50 @@ class Character(db.Model):
             "created_at": self.created_at.isoformat() + "Z",
             "updated_at": self.updated_at.isoformat() + "Z",
         }
+
+
+class MonsterCollection(db.Model):
+    """A Dungeon Master's named group of monsters, such as "Warlock boss dungeon".
+
+    Monsters are stored by their rules `index` (e.g. "goblin"), so the stat block always comes
+    from the SRD data and a collection only keeps the DM's own choices: role, count and a note.
+    """
+    __tablename__ = "monster_collections"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(60))
+    notes: Mapped[str] = mapped_column(String(2000), default="")
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(default=utcnow, onupdate=utcnow)
+
+    entries: Mapped[list[CollectionEntry]] = relationship(
+        back_populates="collection", cascade="all, delete-orphan", order_by="CollectionEntry.id")
+
+
+class CollectionEntry(db.Model):
+    """One monster in a collection: how many of it, and the part it plays (minion, boss...)."""
+    __tablename__ = "collection_entries"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    collection_id: Mapped[int] = mapped_column(ForeignKey("monster_collections.id", ondelete="CASCADE"), index=True)
+    monster: Mapped[str] = mapped_column(String(80))
+    role: Mapped[str] = mapped_column(String(20), default="none")
+    count: Mapped[int] = mapped_column(default=1)
+    note: Mapped[str] = mapped_column(String(300), default="")
+
+    collection: Mapped[MonsterCollection] = relationship(back_populates="entries")
+
+
+class Environment(db.Model):
+    """A DM's own environment group, such as "Underdark" or "Haunted swamp".
+
+    The SRD doesn't say where monsters live, so each DM sorts them into environments themselves.
+    """
+    __tablename__ = "environments"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(40))
+    monsters: Mapped[list] = mapped_column(db.JSON, default=list)
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
