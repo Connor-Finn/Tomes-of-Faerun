@@ -8,6 +8,7 @@ The app is split into blueprints, one per area of the product:
     dev      fake mailbox and test-only helpers (never enabled in production)
     rules    read-only D&D 5e SRD content: spells, monsters, classes, items...
     characters  the Character Manager: rules-checked character builds and sheets
+    bestiary the DM's monster collections and environments
     spa      serves the built React app for every non-API URL
 """
 from __future__ import annotations
@@ -30,7 +31,7 @@ def create_app(overrides: dict | None = None) -> Flask:
     Path(app.config["UPLOAD_FOLDER"]).mkdir(parents=True, exist_ok=True)
     db.init_app(app)
 
-    from . import account, admin, auth, dev, spa
+    from . import account, admin, auth, bestiary, dev, spa
     from .characters import api as characters_api
     from .rules import api as rules_api
     from .security import load_current_user, require_csrf_header
@@ -44,6 +45,7 @@ def create_app(overrides: dict | None = None) -> Flask:
     app.register_blueprint(dev.bp)
     app.register_blueprint(rules_api.bp)
     app.register_blueprint(characters_api.bp)
+    app.register_blueprint(bestiary.bp)
     app.register_blueprint(spa.bp)  # last: it catches every other URL
 
     @app.get("/api/health")

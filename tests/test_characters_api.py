@@ -5,10 +5,9 @@ adds on top: who can see and change a character, drafts versus finished characte
 and that the server (not the browser) refuses illegal builds.
 """
 import pytest
-from playwright.sync_api import APIRequestContext, Playwright
+from playwright.sync_api import APIRequestContext
 
 from builds import aldric, autofill, blank
-from conftest import API_HEADERS
 
 pytestmark = pytest.mark.api
 
@@ -25,16 +24,6 @@ def create(ctx: APIRequestContext, **body) -> dict:
     response = ctx.post("/api/characters", data=body)
     assert response.status == 201, response.text()
     return response.json()
-
-
-@pytest.fixture
-def other_api(playwright: Playwright, base_url: str, create_user) -> APIRequestContext:
-    """A second, unrelated player."""
-    someone = create_user()
-    ctx = playwright.request.new_context(base_url=base_url, extra_http_headers=API_HEADERS)
-    assert ctx.post("/api/auth/login", data={"email": someone["email"], "password": someone["password"]}).ok
-    yield ctx
-    ctx.dispose()
 
 
 # ------------------------------------------------------------------ reference data

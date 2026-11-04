@@ -217,12 +217,21 @@ def index():
 def list_entries(kind: str):
     if kind not in KINDS:
         abort(404, description=f"Unknown rules category '{kind}'.")
+    return jsonify(catalogue_page(kind))
+
+
+def catalogue_page(kind: str, extra_filters: Iterable[Filter] = ()) -> dict:
+    """One page of a catalogue, searched, filtered and sorted from the request's query string.
+
+    Other blueprints reuse this to add filters that need the user, e.g. the bestiary's
+    "only monsters in my Underdark environment".
+    """
     summarise, make_filters, facets = CATALOGUES.get(kind, (basic_summary, lambda: [], None))
 
     entries: Iterable[dict] = load(kind)
     if q := request.args.get("q", "").strip().lower():
         entries = [e for e in entries if q in e.get("name", e["index"]).lower()]
-    for keep in make_filters():
+    for keep in [*make_filters(), *extra_filters]:
         entries = [e for e in entries if keep(e)]
     entries = list(entries)
 
@@ -243,7 +252,7 @@ def list_entries(kind: str):
     }
     if facets and _arg_bool("facets"):
         body["facets"] = facets()
-    return jsonify(body)
+    return body
 
 
 @bp.get("/<kind>/<index>")

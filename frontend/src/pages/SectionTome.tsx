@@ -5,11 +5,20 @@ import { MODE_LABELS, useEnterMode } from "../lib/mode";
 import type { SectionDef, TomePageDef } from "../lib/sections";
 import { CreateCharacter } from "./characters/CreateCharacter";
 import { MyCharacters } from "./characters/MyCharacters";
+import { Bestiary } from "./bestiary/Bestiary";
+import { Collections } from "./bestiary/Collections";
+import { Environments } from "./bestiary/Environments";
 
-/** Pages that are built, by "section key/page slug". Every other page shows its plans. */
+/**
+ * Pages that are built, by "section key/page slug". Every other page shows its plans.
+ * A built page can also have sub-pages (/dm/tomes/bestiary/goblin): it reads `:sub` itself.
+ */
 const BUILT_PAGES: Record<string, ComponentType> = {
   "character-manager/my-characters": MyCharacters,
   "character-manager/create": CreateCharacter,
+  "browse-tomes/bestiary": Bestiary,
+  "browse-tomes/collections": Collections,
+  "browse-tomes/environments": Environments,
 };
 
 /** One section of the app (e.g. Character Manager), shown as a tome. */
