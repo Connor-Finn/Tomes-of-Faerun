@@ -151,6 +151,11 @@ function CharacterControls({ detail, onChange }: { detail: CharacterDetail; onCh
         <Link to={`/play/characters/c/${character.id}/edit`} className="btn primary small">
           Edit in the builder
         </Link>
+        {character.status === "complete" && (
+          <Link to={`/play/characters/publish?character=${character.id}`} className="btn ghost small">
+            Publish
+          </Link>
+        )}
         <button type="button" className="btn ghost small" onClick={() => setDeleting(true)}>
           Delete character
         </button>

@@ -63,10 +63,11 @@ export const SECTIONS: SectionDef[] = [
       {
         slug: "parties",
         title: "Parties",
-        summary: "The adventuring parties you belong to.",
+        summary: "The adventuring parties you belong to, and their chat.",
         plans: [
           "Accept or decline invitations from Dungeon Masters.",
-          "Later: chat with your party on enchanted parchment, and find public parties to join.",
+          "Chat with your party on enchanted parchment.",
+          "Later: find public parties to join, and send friend requests.",
         ],
       },
     ],
@@ -106,7 +107,8 @@ export const SECTIONS: SectionDef[] = [
         summary: "Share a character as a template other players can start from.",
         plans: [
           "Publishing makes a fixed copy, so later edits to your character don't change it.",
-          "Choose which of the character's level roadmaps to include.",
+          "Choose which of the character's level roadmaps to include (once roadmaps exist).",
+          "See how many players copied each one, and unpublish at any time.",
         ],
       },
     ],
@@ -150,7 +152,8 @@ export const SECTIONS: SectionDef[] = [
         plans: [
           "Create public or private parties and invite players.",
           "Attach a party to one or more campaigns.",
-          "Decide whether players may invite their friends.",
+          "Chat with your party on enchanted parchment.",
+          "Later: decide whether players may invite their friends.",
         ],
       },
       {

@@ -763,6 +763,94 @@ form.bestiary-filters .field.checks { grid-column: 1 / -1; display: flex; flex-w
 .character-card.choosable label > span { display: grid; }
 .character-card.chosen { border-color: var(--wax); box-shadow: 0 0 0 2px rgba(143, 42, 32, 0.3); }
 
+/* ---------- Published characters ---------- */
+.published-path { margin: 0.6rem 0 1.2rem; }
+.subheading { margin: 1rem 0 0.2rem; font-family: var(--font-display); font-weight: 400; font-size: 1.1rem; color: var(--wax-dark); }
+.publish-form { display: grid; gap: 0.8rem; max-width: 38rem; }
+.publish-form .btn { justify-self: start; }
+
+/* ---------- Party chat: enchanted parchment ----------
+   Ink appears word by word as if an unseen hand were writing, older lines fade as they drift
+   up the page, and struck-out messages dissolve. Each writer's ink has its own colour. */
+.party-page .magic-paper { margin: 0.8rem 0 1.4rem; }
+.magic-paper {
+  position: relative; padding: 1rem 1.1rem 0.9rem; border-radius: 4px;
+  background-color: #f4e6c4;
+  background-image:
+    radial-gradient(ellipse at 50% 0%, rgba(255, 236, 170, 0.55), transparent 60%),
+    radial-gradient(ellipse at center, transparent 50%, rgba(150, 100, 40, 0.35) 100%),
+    var(--stains), var(--fibres);
+  border: 1px solid rgba(120, 82, 36, 0.45);
+  box-shadow: 0 0 0 1px rgba(255, 244, 214, 0.6) inset, 0 0 22px rgba(232, 195, 118, 0.35), 0 3px 10px rgba(40, 22, 8, 0.35);
+  animation: paper-glow 6s ease-in-out infinite;
+}
+@keyframes paper-glow {
+  0%, 100% { box-shadow: 0 0 0 1px rgba(255, 244, 214, 0.6) inset, 0 0 18px rgba(232, 195, 118, 0.25), 0 3px 10px rgba(40, 22, 8, 0.35); }
+  50% { box-shadow: 0 0 0 1px rgba(255, 244, 214, 0.6) inset, 0 0 30px rgba(232, 195, 118, 0.5), 0 3px 10px rgba(40, 22, 8, 0.35); }
+}
+.magic-paper-title { margin: 0; font-size: 1.35rem; color: var(--wax-dark); text-align: center; letter-spacing: 0.04em; }
+.magic-paper-hint { margin: 0 0 0.6rem; text-align: center; font-family: var(--font-fell); font-style: italic; font-size: 0.92rem; color: var(--ink-muted); }
+.magic-paper-page { position: relative; border-top: 1px solid rgba(95, 65, 30, 0.25); border-bottom: 1px solid rgba(95, 65, 30, 0.25); }
+.chat-lines {
+  list-style: none; margin: 0; padding: 1.4rem 0.3rem 0.6rem; height: 24rem; overflow-y: auto; overscroll-behavior: contain;
+  /* Old writing fades away towards the top of the page */
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, rgba(0, 0, 0, 0.25) 2.2rem, #000 6rem);
+  mask-image: linear-gradient(to bottom, transparent 0, rgba(0, 0, 0, 0.25) 2.2rem, #000 6rem);
+  scrollbar-width: thin; scrollbar-color: rgba(120, 82, 36, 0.45) transparent;
+}
+.chat-blank { padding: 6rem 1rem 0; text-align: center; font-family: var(--font-fell); font-style: italic; color: var(--ink-muted); }
+.chat-older { text-align: center; margin: 0 0 0.8rem; }
+.chat-line { margin: 0 0 0.75rem; padding: 0 0.2rem; }
+.chat-meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 0.55rem; margin: 0; font-size: 0.85rem; color: var(--ink-muted); }
+.chat-author { font-family: var(--font-display); font-size: 1rem; color: var(--chat-ink); }
+.chat-dm-tag { font-variant: small-caps; letter-spacing: 0.04em; color: var(--wax); }
+.chat-time { font-style: italic; }
+.chat-body { margin: 0.05rem 0 0; font-family: var(--font-fell); font-size: 1.12rem; line-height: 1.4; color: var(--chat-ink); white-space: pre-wrap; overflow-wrap: anywhere; }
+.chat-line.ink-other { --chat-ink: var(--ink); }
+.chat-line.ink-mine { --chat-ink: var(--sky-ink); padding-left: 1.4rem; }
+.chat-line.ink-dm { --chat-ink: var(--wax-dark); }
+.chat-strike {
+  margin-left: auto; padding: 0 0.2rem; border: 0; background: none; font: inherit; font-size: 0.8rem; font-style: italic;
+  color: var(--ink-muted); cursor: pointer; text-decoration: underline dotted; opacity: 0; transition: opacity 0.2s;
+}
+.chat-line:hover .chat-strike, .chat-strike:focus-visible { opacity: 1; }
+@media (hover: none) { .chat-strike { opacity: 0.7; } }
+
+/* Ink appears: each word blooms out of a blur, one after another */
+.chat-line.inking .ink-word { display: inline-block; animation: ink-in 0.9s ease-out both; }
+.chat-line.inking .chat-meta { animation: ink-in 0.6s ease-out both; }
+@keyframes ink-in {
+  0% { opacity: 0; filter: blur(5px); transform: translateY(2px); }
+  60% { opacity: 0.85; filter: blur(0.6px); }
+  100% { opacity: 1; filter: none; transform: none; }
+}
+/* Ink fades: a struck-out message soaks back into the paper */
+.chat-line.fading { animation: ink-out 1.1s ease-in forwards; pointer-events: none; }
+@keyframes ink-out {
+  0% { opacity: 1; filter: none; }
+  100% { opacity: 0; filter: blur(6px); letter-spacing: 0.12em; }
+}
+.chat-unread { display: flex; align-items: center; gap: 0.6rem; margin: 0.2rem 0 0.8rem; font-size: 0.82rem; font-variant: small-caps; letter-spacing: 0.05em; color: var(--wax); }
+.chat-unread::before, .chat-unread::after { content: ""; flex: 1; border-top: 1px solid rgba(143, 42, 32, 0.4); }
+.chat-new-below {
+  position: absolute; left: 50%; bottom: 0.6rem; transform: translateX(-50%); padding: 0.2rem 0.8rem; border-radius: 999px;
+  border: 1px solid rgba(120, 82, 36, 0.5); background: var(--parchment); font: inherit; font-size: 0.88rem; color: var(--wax-dark);
+  cursor: pointer; box-shadow: 0 1px 4px rgba(60, 35, 10, 0.3);
+}
+/* "Mira is writing…": quill scratches that fade in and out */
+.chat-writing { min-height: 1.5rem; margin: 0.3rem 0 0.2rem; font-family: var(--font-fell); font-style: italic; font-size: 0.95rem; color: var(--ink-muted); opacity: 0; transition: opacity 0.6s; }
+.chat-writing.on { opacity: 1; animation: quill 1.8s ease-in-out infinite; }
+@keyframes quill { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+.chat-compose { display: flex; gap: 0.6rem; align-items: flex-end; }
+.chat-compose textarea {
+  flex: 1; min-width: 0; resize: vertical; min-height: 2.8rem; font-family: var(--font-fell); font-size: 1.08rem;
+  background: rgba(255, 250, 236, 0.55); border: 0; border-bottom: 1px solid rgba(95, 65, 30, 0.5); border-radius: 2px 2px 0 0;
+}
+.chat-quote { margin: 0 0 0.8rem; padding: 0.4rem 0.8rem; border-left: 3px solid var(--line); font-family: var(--font-fell); white-space: pre-wrap; }
+.unread-pill { color: var(--wax); border-color: rgba(143, 42, 32, 0.5); background: rgba(143, 42, 32, 0.08); }
+.party-roster { list-style: none; padding: 0; margin: 0.4rem 0; display: flex; flex-wrap: wrap; gap: 0.4rem 1.2rem; }
+.party-roster li { font-family: var(--font-fell); font-size: 1.05rem; }
+
 @media (max-width: 760px) {
   .builder { padding: 1.2rem 1rem; }
   .builder-actions { justify-items: start; text-align: left; }
@@ -785,8 +873,13 @@ form.bestiary-filters .field.checks { grid-column: 1 / -1; display: flex; flex-w
   .card { padding: 1.4rem 1.2rem; }
   .feature-card, .feature-card:nth-child(n) { transform: none; }
   .hide-narrow { display: none; }
+  .chat-lines { height: 60vh; }
+  .chat-compose { flex-direction: column; align-items: stretch; }
+  .chat-compose textarea { width: 100%; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; }
+  .magic-paper, .chat-writing.on, .chat-line.inking .ink-word, .chat-line.inking .chat-meta { animation: none; }
+  .chat-line.fading { animation-duration: 0.01s; }
 }

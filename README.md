@@ -19,14 +19,16 @@ that run on every push.
 | Character rules engine and API (every SRD rule checked on the server) | ✅ Done |
 | My characters, character sheets, premade templates, build mode | ✅ Done |
 | Character builder: Standard (free tabs, levels 1 to 20) and Easy (guided tutorial, levels 1 to 3) | ✅ Done |
-| Level roadmaps and publishing characters | 🛠 Planned |
+| Publishing characters: share a fixed copy other players can browse, search and copy | ✅ Done |
+| Level roadmaps | 🛠 Planned |
 | Bestiary: stat blocks, monster collections (minion / elite / boss), environments | ✅ Done |
 | Spell catalogue (search, filters, full rules text), favourite spells, readable character spellbooks | ✅ Done |
 | Items catalogue (equipment and magic items, search, filters, full descriptions), favourite items, adding items to characters | ✅ Done |
 | Campaigns: overview, session log, encounters from your bestiary, private DM notes | ✅ Done |
 | Parties: DMs invite players by email, players accept or decline | ✅ Done |
 | Characters in campaigns: each player brings a copy (an instance) that levels up and tracks hit points; the DM reads it and leaves notes | ✅ Done |
-| Party chat, friend requests, public parties and sharing characters | 🛠 Planned |
+| Party chat on enchanted parchment: words ink in, struck-out messages fade, "is writing…", unread counts | ✅ Done |
+| Friend requests, people search, public parties and join requests | 🛠 Planned |
 | Solo text adventure             | 🛠 Planned   |
 
 ## Tech stack

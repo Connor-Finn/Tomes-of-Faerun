@@ -4,7 +4,7 @@
     GET    /api/characters/templates    premade characters to start from
     POST   /api/characters/check        analyse a build without saving it (the builder calls this live)
     GET    /api/characters              your characters
-    POST   /api/characters              create one, from a build or from a template
+    POST   /api/characters              create one, from a build, a template, or a published character {published: id}
     GET    /api/characters/<id>         the character, its sheet and its open choices
     PATCH  /api/characters/<id>         change the build, the name or the build mode
     DELETE /api/characters/<id>
@@ -138,7 +138,15 @@ def create():
         abort(400, description=f"You can keep up to {MAX_CHARACTERS} characters. Delete one to make room.")
 
     template_id = data.get("template")
-    if template_id:
+    published = None
+    if data.get("published") is not None:
+        from ..published import get_published
+        published = get_published(data["published"])
+        build = copy.deepcopy(published.build)
+        mode = _build_mode(data, published.build_mode)
+        previous_level = build.get("level", 1)   # like a template: its level is never refused
+        template_id = f"published-{published.id}"
+    elif template_id:
         template = templates.get(str(template_id))
         if template is None:
             abort(404, description="Template not found.")
@@ -154,6 +162,8 @@ def create():
     if error := _save(character, build, mode, previous_level):
         return error
     db.session.add(character)
+    if published is not None:
+        published.copies += 1
     db.session.commit()
     return jsonify(_detail(character)), 201
 

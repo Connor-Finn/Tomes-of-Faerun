@@ -5,6 +5,7 @@ import { MODE_LABELS, useEnterMode } from "../lib/mode";
 import type { SectionDef, TomePageDef } from "../lib/sections";
 import { CreateCharacter } from "./characters/CreateCharacter";
 import { MyCharacters } from "./characters/MyCharacters";
+import { PublishCharacter } from "./characters/PublishCharacter";
 import { Bestiary } from "./bestiary/Bestiary";
 import { Collections } from "./bestiary/Collections";
 import { Environments } from "./bestiary/Environments";
@@ -20,6 +21,7 @@ import { DmParties, PlayerParties } from "./campaigns/Parties";
 const BUILT_PAGES: Record<string, ComponentType> = {
   "character-manager/my-characters": MyCharacters,
   "character-manager/create": CreateCharacter,
+  "character-manager/publish": PublishCharacter,
   "browse-tomes/spells": Spells,
   "browse-tomes/bestiary": Bestiary,
   "browse-tomes/collections": Collections,
