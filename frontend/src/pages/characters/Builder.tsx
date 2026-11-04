@@ -69,6 +69,30 @@ export function sectionOf(field: string): SectionKey {
   return "equipment";
 }
 
+/**
+ * Picks that belong to a class, race or background. Several slots share an id across classes
+ * ("class:proficiency-0" is every class's skill choice, "spells:cantrips" every caster's cantrips),
+ * so without this a Cleric's Insight would carry over into the Barbarian's skills as a hidden pick.
+ */
+const PICKS_OWNED_BY: Partial<Record<keyof Build, string[]>> = {
+  class: ["class:", "feature:", "asi:", "spells:", "equipment:class-"],
+  race: ["race:", "trait:"],
+  background: ["background:", "equipment:background-"],
+};
+
+/** Apply a change, dropping the picks of a class, race or background the player switched away from. */
+export function withoutStalePicks(build: Build, patch: Partial<Build>): Build {
+  const next = { ...build, ...patch };
+  const prefixes = Object.entries(PICKS_OWNED_BY)
+    .filter(([key]) => key in patch && patch[key as keyof Build] !== build[key as keyof Build])
+    .flatMap(([, owned]) => owned ?? []);
+  if (!prefixes.length) return next;
+  const choices = Object.fromEntries(
+    Object.entries(build.choices ?? {}).filter(([slotId]) => !prefixes.some((p) => slotId.startsWith(p))),
+  );
+  return { ...next, choices };
+}
+
 /** What the check endpoint is sent: half-assigned ability scores count as not chosen yet. */
 function forCheck(build: Build): Build {
   const scores = build.ability_scores;
@@ -160,7 +184,7 @@ export function Builder() {
 
   const update = (patch: Partial<Build>) => {
     setSaveErrors([]);
-    setBuild((b) => ({ ...(b as Build), ...patch }));
+    setBuild((b) => withoutStalePicks(b as Build, patch));
   };
   const setChoice = (slotId: string, values: string[]) => {
     setSaveErrors([]);

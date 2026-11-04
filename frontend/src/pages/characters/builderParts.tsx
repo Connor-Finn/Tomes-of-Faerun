@@ -96,6 +96,12 @@ function usePicker({ slot, selected, onChange }: SlotProps) {
   return { notice, toggle };
 }
 
+/** A readable name for a pick that isn't among the options: "skill-insight" -> "Insight". */
+export function pickLabel(value: string): string {
+  const words = value.replace(/^(skill|saving-throw|feat)[-:]/, "").replace(/-/g, " ");
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
 export function visibleOptions(slot: Slot, selected: string[], mode: BuildMode): SlotOption[] {
   return mode === "easy" ? slot.options.filter((o) => !o.denied || selected.includes(o.value)) : slot.options;
 }
@@ -105,6 +111,8 @@ export function ChipSlot(props: SlotProps) {
   const { slot, selected, mode } = props;
   const { notice, toggle } = usePicker(props);
   const options = visibleOptions(slot, selected, mode);
+  // Picks saved earlier that aren't on offer any more: shown so they can be seen and removed
+  const unavailable = selected.filter((v) => !slot.options.some((o) => o.value === v));
   return (
     <fieldset className="slot" data-testid="slot" data-slot={slot.id}>
       <legend>
@@ -129,6 +137,19 @@ export function ChipSlot(props: SlotProps) {
             </button>
           );
         })}
+        {unavailable.map((v) => (
+          <button
+            key={v}
+            type="button"
+            className="chip on unavailable"
+            aria-pressed="true"
+            title="No longer one of the options. Click to remove it."
+            data-testid="unavailable-pick"
+            onClick={() => toggle({ value: v, label: pickLabel(v) })}
+          >
+            {pickLabel(v)} ✕
+          </button>
+        ))}
       </div>
       {mode === "easy" && options.length < slot.options.length && (
         <p className="hint">{slot.options.length - options.length} options you can't take are hidden.</p>
@@ -163,9 +184,9 @@ export function SpellSlot(props: SlotProps) {
         {selected.length === 0 && <li className="muted small">None yet.</li>}
         {selected.map((v) => (
           <li key={v}>
-            <span>{byValue.get(v)?.label ?? v}</span>
-            <button type="button" className="btn ghost small" onClick={() => toggle(byValue.get(v) ?? { value: v, label: v })}>
-              Remove<span className="sr-only"> {byValue.get(v)?.label ?? v}</span>
+            <span>{byValue.get(v)?.label ?? pickLabel(v)}</span>
+            <button type="button" className="btn ghost small" onClick={() => toggle(byValue.get(v) ?? { value: v, label: pickLabel(v) })}>
+              Remove<span className="sr-only"> {byValue.get(v)?.label ?? pickLabel(v)}</span>
             </button>
           </li>
         ))}

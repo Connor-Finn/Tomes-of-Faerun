@@ -120,6 +120,12 @@ def test_class_skills_come_from_the_class_list():
     assert not check(blank(choices={"class:proficiency-0": ["skill-arcana", "skill-athletics"]}))["valid"]
 
 
+def test_a_pick_that_isnt_an_option_is_named_in_plain_words():
+    result = check(blank(choices={"class:proficiency-0": ["skill-arcana", "skill-athletics"]}))
+    assert "Arcana isn't one of the options" in messages(result)
+    assert "skill-arcana" not in messages(result)
+
+
 def test_a_skill_from_your_background_cant_be_picked_again():
     # Acolytes already know Insight and Religion
     result = check(blank(**{"class": "cleric"}))

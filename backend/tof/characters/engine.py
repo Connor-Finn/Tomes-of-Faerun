@@ -86,6 +86,14 @@ def strip_prefix(name: str) -> str:
     return name.split(": ", 1)[1] if name.startswith(("Skill: ", "Saving Throw: ")) else name
 
 
+def pick_name(value: str) -> str:
+    """A readable name for a saved pick that may no longer be on offer: 'skill-insight' -> 'Insight'."""
+    for kind in ("proficiencies", "languages", "spells", "equipment", "features", "traits", "feats"):
+        if (found := rules.get(kind, value)) and found.get("name"):
+            return strip_prefix(found["name"])
+    return value.split(":", 1)[-1].replace("-", " ").capitalize()
+
+
 # ---------------------------------------------------------------------------
 # Rules lookups (cached: the rules data never changes while the app runs)
 # ---------------------------------------------------------------------------
@@ -259,7 +267,7 @@ class Analysis:
             for p in picks:
                 o = by_value.get(p)
                 if o is None:
-                    slot.errors.append(f"“{p}” isn't one of the options.")
+                    slot.errors.append(f"{pick_name(p)} isn't one of the options any more. Remove it and pick again.")
                 elif o.get("denied"):
                     slot.errors.append(f"{o['label']}: {o['denied']}")
             if len(picks) > slot.choose:
