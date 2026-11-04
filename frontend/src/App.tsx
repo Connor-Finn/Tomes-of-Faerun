@@ -12,6 +12,7 @@ import { CheckEmail, ForgotPassword, ResetPassword, VerifyEmail } from "./pages/
 import { Login } from "./pages/auth/Login";
 import { Signup } from "./pages/auth/Signup";
 import { SECTIONS } from "./lib/sections";
+import { CharacterTome } from "./pages/characters/CharacterTome";
 
 export function App() {
   return (
@@ -40,6 +41,9 @@ export function App() {
             element={<RequireAuth><SectionTome section={s} /></RequireAuth>}
           />
         ))}
+
+        {/* Each character is its own tome */}
+        <Route path="play/characters/c/:id/:page?" element={<RequireAuth><CharacterTome /></RequireAuth>} />
 
         {/* Developer tools */}
         <Route path="mailbox" element={<Mailbox />} />

@@ -24,13 +24,15 @@ interface TomeProps {
   /** Slug of the open page; anything not in `pages` shows no "current" entry or page turner. */
   current?: string;
   cover?: string;
+  /** Extra controls on the contents leaf, under the table of contents. */
+  aside?: ReactNode;
   children: ReactNode;
 }
 
 const ROMAN = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII"];
 export const roman = (n: number) => ROMAN[n - 1] ?? String(n);
 
-export function Tome({ eyebrow, title, subtitle, basePath, pages, current, cover = "oxblood", children }: TomeProps) {
+export function Tome({ eyebrow, title, subtitle, basePath, pages, current, cover = "oxblood", aside, children }: TomeProps) {
   const index = pages.findIndex((p) => p.slug === current);
   const prev = index > 0 ? pages[index - 1] : undefined;
   const next = index >= 0 && index < pages.length - 1 ? pages[index + 1] : undefined;
@@ -59,6 +61,7 @@ export function Tome({ eyebrow, title, subtitle, basePath, pages, current, cover
             </ol>
           </nav>
         )}
+        {aside}
       </div>
 
       <div className="tome-leaf tome-page" data-testid="tome-page">
