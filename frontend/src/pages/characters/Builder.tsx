@@ -128,7 +128,10 @@ export function Builder() {
   const [mode, setMode] = useState<BuildMode>(params.get("mode") === "easy" ? "easy" : "standard");
   const [name, setName] = useState("New character");
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [section, setSection] = useState<SectionKey>(mode === "easy" ? "class" : "basics");
+  // ?section=spells opens the builder on that page, e.g. from a character's spellbook
+  const asked = params.get("section") as SectionKey | null;
+  const startSection = (m: BuildMode): SectionKey => (asked && asked in SECTION_TITLES ? asked : m === "easy" ? "class" : "basics");
+  const [section, setSection] = useState<SectionKey>(startSection(mode));
   const [saving, setSaving] = useState(false);
   const [saveErrors, setSaveErrors] = useState<Problem[]>([]);
   const [startLevel, setStartLevel] = useState(0);
@@ -145,7 +148,7 @@ export function Builder() {
       setMode(res.data.character.build_mode);
       setName(res.data.character.name);
       setStartLevel(res.data.character.level);
-      setSection(res.data.character.build_mode === "easy" ? "class" : "basics");
+      setSection(startSection(res.data.character.build_mode));
     });
   }, [editing, id]);
 

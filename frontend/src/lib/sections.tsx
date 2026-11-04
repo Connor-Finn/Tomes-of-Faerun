@@ -174,10 +174,11 @@ export const SECTIONS: SectionDef[] = [
       {
         slug: "spells",
         title: "Spells",
-        summary: "Every spell in the System Reference Document.",
+        summary: "Every spell in the System Reference Document, with your favourites starred.",
         plans: [
-          "Search and filter by level, school and class.",
+          "Search and filter by level, school, class, concentration and ritual.",
           "Read each spell's full rules text.",
+          "Star your favourite spells; they're starred in the character builder too.",
         ],
       },
       {

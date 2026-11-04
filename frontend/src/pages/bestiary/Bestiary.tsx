@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useLocation, useParams, useSearchParams } from "react-router-dom";
 import { api } from "../../lib/api";
 import {
@@ -44,7 +44,8 @@ function MonsterList() {
   // Search as you type, a moment after the typing stops
   useEffect(() => {
     if (search === q) return;
-    const timer = window.setTimeout(() => update({ q: search }), 300);
+    // Through a ref, so a filter changed while typing isn't undone by an out-of-date update
+    const timer = window.setTimeout(() => latestUpdate.current({ q: search }), 300);
     return () => window.clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search]);
@@ -83,6 +84,9 @@ function MonsterList() {
     if (!("page" in changes)) next.delete("page");
     setParams(next, { replace: "q" in changes });
   }
+
+  const latestUpdate = useRef(update);
+  latestUpdate.current = update;
 
   function onSubmit(e: FormEvent) {
     e.preventDefault();

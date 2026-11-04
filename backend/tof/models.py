@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from sqlalchemy import ForeignKey, String
+from sqlalchemy import ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .extensions import db
@@ -49,6 +49,7 @@ class User(db.Model):
     characters: Mapped[list[Character]] = relationship(back_populates="user", cascade="all, delete-orphan")
     monster_collections: Mapped[list[MonsterCollection]] = relationship(cascade="all, delete-orphan")
     environments: Mapped[list[Environment]] = relationship(cascade="all, delete-orphan")
+    favourite_spells: Mapped[list[FavouriteSpell]] = relationship(cascade="all, delete-orphan")
 
     @property
     def is_admin(self) -> bool:
@@ -194,4 +195,15 @@ class Environment(db.Model):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     name: Mapped[str] = mapped_column(String(40))
     monsters: Mapped[list] = mapped_column(db.JSON, default=list)
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
+
+
+class FavouriteSpell(db.Model):
+    """A spell a user has starred in the spell catalogue, stored by its rules `index` ("fireball")."""
+    __tablename__ = "favourite_spells"
+    __table_args__ = (UniqueConstraint("user_id", "spell"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    spell: Mapped[str] = mapped_column(String(80))
     created_at: Mapped[datetime] = mapped_column(default=utcnow)

@@ -663,6 +663,36 @@ label.compact { white-space: nowrap; display: inline-flex; align-items: center; 
 label.compact input { width: 4.2rem; }
 label.compact select { width: auto; }
 
+/* ---------- Spells ---------- */
+.star { flex: none; font: inherit; font-size: 1.25rem; line-height: 1; padding: 0.1rem 0.25rem; background: none; border: 0; cursor: pointer; color: var(--ink-muted); border-radius: 3px; }
+.star:hover, .star:focus-visible { color: #a8781c; background: rgba(168, 120, 28, 0.12); }
+.star.on { color: #a8781c; }
+.star.btn { font-size: 0.95rem; display: inline-flex; align-items: center; gap: 0.2rem; }
+.star.btn span[aria-hidden] { font-size: 1.15rem; }
+.star-cell { width: 2rem; padding-right: 0 !important; }
+.spell-flags { display: inline-flex; gap: 0.25rem; margin-left: 0.45rem; vertical-align: middle; }
+.flag { font-size: 0.7rem; font-weight: 700; text-decoration: none; border: 1px solid var(--ink-muted); color: var(--ink-muted); border-radius: 2px; padding: 0 0.22rem; font-family: var(--font-body); cursor: help; }
+form.bestiary-filters .field.checks { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 0.3rem 1.4rem; }
+
+.spell-block { max-width: 46rem; }
+.spell-block header { align-items: flex-start; gap: 0.6rem; }
+.spell-block header .page-title, .spell-block-title { margin-bottom: 0.1rem; color: var(--wax-dark); font-variant: small-caps; letter-spacing: 0.02em; }
+.spell-block-title { margin: 0; font-family: var(--font-display); font-size: 1.3rem; }
+.spell-text p { margin: 0 0 0.65rem; }
+.spell-text ul { margin: 0 0 0.65rem; padding-left: 1.3rem; }
+.spell-extra { margin-top: 0.4rem; }
+.rules-heading { margin: 0.8rem 0 0.4rem; font-variant: small-caps; color: var(--wax-dark); }
+.rules-table { margin: 0.2rem 0 0.8rem; font-size: 0.95rem; }
+.rules-table th, .rules-table td { padding: 0.3rem 0.5rem; vertical-align: top; }
+
+.catalogue-actions { margin-left: auto; display: inline-flex; gap: 0.3rem; }
+.catalogue li .catalogue-actions .btn { margin-left: 0; }
+.spell-reader { flex: 1 1 100%; margin: 0.4rem 0 0.3rem; padding: 0.7rem 0.9rem; border: 1px dashed rgba(95, 65, 30, 0.45); border-radius: 3px; background: rgba(255, 250, 236, 0.45); }
+.spell-list .spell-reader { order: 10; }
+.link-like { font: inherit; background: none; border: 0; padding: 0; color: inherit; cursor: pointer; text-align: left; text-decoration: underline dotted rgba(95, 65, 30, 0.5); text-underline-offset: 3px; }
+.link-like.spell-name { font-family: var(--font-fell); font-size: 1.08rem; }
+.link-like:hover { color: var(--wax); }
+
 @media (max-width: 760px) {
   .builder { padding: 1.2rem 1rem; }
   .builder-actions { justify-items: start; text-align: left; }
@@ -684,6 +714,7 @@ label.compact select { width: auto; }
   .topbar { padding: 0.6rem 1rem; }
   .card { padding: 1.4rem 1.2rem; }
   .feature-card, .feature-card:nth-child(n) { transform: none; }
+  .hide-narrow { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

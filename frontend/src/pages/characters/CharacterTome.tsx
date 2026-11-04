@@ -16,6 +16,8 @@ import {
 } from "../../lib/characters";
 import { useFlash } from "../../lib/flash";
 import { MODE_LABELS, useEnterMode } from "../../lib/mode";
+import { useFavouriteSpells } from "../../lib/spells";
+import { FavouriteStar, SpellReader } from "../spells/SpellText";
 
 /** Every character opens as its own tome. */
 export const CHARACTER_PAGES = [
@@ -75,7 +77,7 @@ export function CharacterTome() {
       >
         {!page && <MissingCharacterPage id={character.id} />}
         {page?.slug === "sheet" && <SheetPage detail={detail} />}
-        {page?.slug === "spellbook" && <SpellbookPage sheet={sheet} />}
+        {page?.slug === "spellbook" && <SpellbookPage sheet={sheet} characterId={detail.character.id} />}
         {page?.slug === "inventory" && <InventoryPage sheet={sheet} />}
         {page?.slug === "features" && <FeaturesPage sheet={sheet} />}
         {page?.slug === "notes" && <NotesPage detail={detail} onSaved={replace} />}
@@ -374,8 +376,10 @@ function SheetPage({ detail }: { detail: CharacterDetail }) {
 
 const ORDINAL = ["Cantrips", "1st level", "2nd level", "3rd level", "4th level", "5th level", "6th level", "7th level", "8th level", "9th level"];
 
-function SpellbookPage({ sheet }: { sheet: Sheet }) {
+function SpellbookPage({ sheet, characterId }: { sheet: Sheet; characterId: number }) {
   const sc = sheet.spellcasting;
+  const [reading, setReading] = useState<string | null>(null);
+  const { isFavourite, toggle } = useFavouriteSpells();
   if (!sc) {
     return (
       <section aria-labelledby="page-title">
@@ -390,6 +394,12 @@ function SpellbookPage({ sheet }: { sheet: Sheet }) {
   return (
     <section aria-labelledby="page-title" data-testid="spellbook">
       <PageHeading title="Spellbook" />
+      <div className="row between wrap">
+        <p className="muted small">Open a spell to read it. Stars mark your favourite spells.</p>
+        <Link to={`/play/characters/c/${characterId}/edit?section=spells`} className="btn ghost small">
+          Change spells
+        </Link>
+      </div>
       <ul className="stat-row" aria-label="Spellcasting">
         <li className="stat">
           <span className="stat-value">{sc.ability_name.slice(0, 3).toUpperCase()}</span>
@@ -421,7 +431,16 @@ function SpellbookPage({ sheet }: { sheet: Sheet }) {
               .filter((s) => s.level === lvl)
               .map((s) => (
                 <li key={s.index} data-testid="spell">
-                  <span className="spell-name">{s.name}</span> <span className="muted small">{s.school}</span>
+                  <FavouriteStar name={s.name} on={isFavourite(s.index)} onToggle={() => void toggle(s.index)} />
+                  <button
+                    type="button"
+                    className="spell-name link-like"
+                    aria-expanded={reading === s.index}
+                    onClick={() => setReading((r) => (r === s.index ? null : s.index))}
+                  >
+                    {s.name}
+                  </button>{" "}
+                  <span className="muted small">{s.school}</span>
                   <span className="spell-tags">
                     {s.source !== "Cantrip" && s.source !== "Known" && s.source !== "Prepared" && s.source !== "Spellbook" && (
                       <span className="pill">{s.source}</span>
@@ -430,6 +449,7 @@ function SpellbookPage({ sheet }: { sheet: Sheet }) {
                       <span className="pill active">Prepared</span>
                     )}
                   </span>
+                  {reading === s.index && <SpellReader index={s.index} />}
                 </li>
               ))}
           </ul>
