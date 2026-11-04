@@ -55,3 +55,38 @@ def autofill(check: Callable[[dict], dict], build: dict, prefer: dict[str, list[
         wanted = [v for v in prefer.get(open_slot["id"], []) if v in allowed]
         build["choices"][open_slot["id"]] = (wanted + [v for v in allowed if v not in wanted])[:open_slot["choose"]]
     raise AssertionError("autofill didn't finish the build")
+
+
+SUBCLASS_AT = {"fighter": (3, "champion"), "wizard": (2, "evocation"), "cleric": (1, "life")}
+
+
+def level_up(ctx, campaign_url: str, to_level: int | None = None, prefer: dict[str, list[str]] | None = None,
+             hp_method: str = "average") -> dict:
+    """Level a campaign character up the way the guided Level Up does, one level at a time.
+
+    Each level starts from what the app offers (GET .../instance/level-up), makes the open picks
+    with autofill (and the SRD's subclass when it unlocks), then takes the level.
+    """
+    def check(build: dict) -> dict:
+        response = ctx.post("/api/characters/check", data={"build": build, "previous_level": 20})
+        assert response.ok, response.text()
+        return response.json()
+
+    body = {}
+    current = ctx.get(f"{campaign_url}/instance").json()["instance"]["level"]
+    for _ in range((to_level or current + 1) - current):
+        preview = ctx.get(f"{campaign_url}/instance/level-up").json()["level_up"]
+        assert preview["allowed"], preview["reason"]
+        build = preview["build"]
+        level, subclass = SUBCLASS_AT.get(build["class"], (3, None))
+        if preview["subclass_unlocks"] and subclass:
+            build = {**build, "subclass": subclass}
+        if hp_method == "roll":
+            ctx.post(f"{campaign_url}/instance/level-up/hp-roll")
+        # Keep the picks already made (earlier picks are locked), then the preferred ones
+        keep = {k: list(v) + list((prefer or {}).get(k, [])) for k, v in (build.get("choices") or {}).items()}
+        build = autofill(check, build, {**(prefer or {}), **keep})
+        response = ctx.post(f"{campaign_url}/instance/level-up", data={"build": build, "hp_method": hp_method})
+        assert response.ok, response.text()
+        body = response.json()
+    return body

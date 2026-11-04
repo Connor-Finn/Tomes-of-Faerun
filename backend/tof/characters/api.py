@@ -4,6 +4,7 @@
     GET    /api/characters/templates    premade characters to start from
     POST   /api/characters/check        analyse a build without saving it (the builder calls this live)
                                         {build, build_mode, previous_level}
+    POST   /api/characters/ability-rolls  roll 4d6-drop-lowest six times, or get your unused roll back
     GET    /api/characters              your characters
     POST   /api/characters              create one, from a build, a template, or a published character {published: id}
                                         (a published character's roadmaps come with it)
@@ -17,13 +18,14 @@ the reasons. A build that is legal but unfinished is saved as a draft.
 from __future__ import annotations
 
 import copy
+import secrets
 
 from flask import Blueprint, abort, g, jsonify
 from sqlalchemy import func, select
 
 from .. import rules
 from ..extensions import db
-from ..models import Character
+from ..models import AbilityRoll, Character
 from ..security import json_body, login_required
 from . import engine, templates
 
@@ -62,6 +64,7 @@ def options():
         alignments=[{"index": a["index"], "name": a["name"], "desc": a.get("desc", "")} for a in rules.load("alignments")],
         abilities=[{"key": k, "name": v} for k, v in engine.ABILITY_NAMES.items()],
         ability_methods=[{"value": k, "label": v} for k, v in engine.ABILITY_METHODS.items()],
+        hp_methods=[{"value": k, "label": v} for k, v in engine.HP_METHODS.items()],
         standard_array=engine.STANDARD_ARRAY,
         point_buy={"budget": engine.POINT_BUY_BUDGET, "costs": engine.POINT_BUY_COST},
         build_modes=list(engine.BUILD_MODES),
@@ -103,6 +106,45 @@ def check():
     return jsonify(engine.check(_build(data), build_mode=_build_mode(data, "standard"), previous_level=previous))
 
 
+def roll_ability_scores() -> tuple[list[int], list[list[int]]]:
+    """Six scores, each 4d6 with the lowest die dropped."""
+    dice = [sorted((secrets.randbelow(6) + 1 for _ in range(4)), reverse=True) for _ in range(6)]
+    return [sum(d[:3]) for d in dice], dice
+
+
+def _roll_dict(r: AbilityRoll) -> dict:
+    return {"id": r.id, "rolls": r.rolls, "dice": r.dice}
+
+
+@bp.post("/ability-rolls")
+@login_required
+def ability_rolls():
+    """The app rolls once: until a character is saved with this roll, asking again returns the same one."""
+    roll = db.session.scalar(select(AbilityRoll).where(AbilityRoll.user_id == g.user.id,
+                                                       AbilityRoll.character_id.is_(None)).order_by(AbilityRoll.id))
+    created = roll is None
+    if created:
+        rolls, dice = roll_ability_scores()
+        roll = AbilityRoll(user_id=g.user.id, rolls=rolls, dice=dice)
+        db.session.add(roll)
+        db.session.commit()
+    return jsonify(roll=_roll_dict(roll)), 201 if created else 200
+
+
+def _check_roll(build: dict, character: Character, before: dict | None) -> tuple[dict, int] | None:
+    """Rolled scores must be the app's own roll for this player: no rolling your own, no rerolls."""
+    scores = build.get("ability_scores") or {}
+    if scores.get("method") != "roll" or (before is not None and scores == before.get("ability_scores")):
+        return None
+    roll_id = scores.get("roll_id")
+    roll = db.session.get(AbilityRoll, roll_id) if isinstance(roll_id, int) and not isinstance(roll_id, bool) else None
+    if roll is None or roll.user_id != g.user.id or scores.get("rolls") != roll.rolls or \
+            (roll.character_id is not None and roll.character_id != character.id):
+        return {"error": "Those aren't your rolls.", "errors": [
+            {"field": "ability_scores", "message": "Rolled scores have to be the ones the app rolled for you."}]}, 400
+    return None
+
+
 def _owned(character_id: int) -> Character:
     character = db.session.get(Character, character_id)
     if character is None or character.user_id != g.user.id:
@@ -110,8 +152,17 @@ def _owned(character_id: int) -> Character:
     return character
 
 
-def _save(character: Character, build: dict, build_mode: str, previous_level: int):
-    """Validate and store a build. Returns an error response, or None when saved."""
+def _save(character: Character, build: dict, build_mode: str, previous_level: int, before: dict | None = None,
+          trusted: bool = False):
+    """Validate and store a build. Returns an error response, or None when saved.
+
+    `before` is the build as it was saved (None for a new character). `trusted` builds come from a
+    template or a published character, whose rolled scores were checked when they were made.
+    """
+    # Hit points per level, DM items and granted spells only exist in campaigns.
+    build = {k: v for k, v in build.items() if k not in engine.CAMPAIGN_KEYS}
+    if not trusted and (error := _check_roll(build, character, before)):
+        return error
     cleaned = engine.clean(build)
     result = engine.check(cleaned, build_mode=build_mode, previous_level=previous_level)
     if not result["valid"]:
@@ -121,6 +172,15 @@ def _save(character: Character, build: dict, build_mode: str, previous_level: in
     character.build_mode = build_mode
     character.is_complete = result["complete"]
     return None
+
+
+def _claim_roll(character: Character) -> None:
+    """Tie a rolled character's roll to it, so the player gets a fresh roll for their next character."""
+    scores = character.build.get("ability_scores") or {}
+    roll = db.session.get(AbilityRoll, scores.get("roll_id")) if scores.get("method") == "roll" and \
+        isinstance(scores.get("roll_id"), int) else None
+    if roll is not None and roll.user_id == g.user.id and roll.character_id is None:
+        roll.character_id = character.id
 
 
 def _detail(character: Character) -> dict:
@@ -165,9 +225,11 @@ def create():
         previous_level = 0
 
     character = Character(user_id=g.user.id, template=template_id or None)
-    if error := _save(character, build, mode, previous_level):
+    if error := _save(character, build, mode, previous_level, trusted=bool(template_id)):
         return error
     db.session.add(character)
+    db.session.flush()
+    _claim_roll(character)
     if published is not None:
         published.copies += 1
         from ..models import Roadmap
@@ -196,8 +258,9 @@ def update(character_id: int):
     if "notes" in data:
         build["notes"] = data["notes"]
     mode = _build_mode(data, character.build_mode)
-    if error := _save(character, build, mode, previous_level=character.build.get("level", 1)):
+    if error := _save(character, build, mode, previous_level=character.build.get("level", 1), before=character.build):
         return error
+    _claim_roll(character)
     db.session.commit()
     return jsonify(_detail(character))
 

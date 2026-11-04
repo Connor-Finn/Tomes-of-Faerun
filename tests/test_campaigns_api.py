@@ -10,7 +10,7 @@ from __future__ import annotations
 import pytest
 from playwright.sync_api import APIRequestContext, Playwright
 
-from builds import aldric, autofill
+from builds import aldric, autofill, level_up
 from conftest import API_HEADERS
 
 pytestmark = pytest.mark.api
@@ -347,40 +347,31 @@ def test_track_hit_points(table, player_api):
 def test_levelling_up_the_instance_leaves_the_base_character_alone(table, player_api):
     character = new_character(player_api)
     player_api.post(f"{table['url']}/instance", data={"character_id": character["id"]})
-
-    def check(build: dict) -> dict:
-        return player_api.post("/api/characters/check", data={"build": build}).json()
-
-    level3 = autofill(check, {**aldric(), "level": 3, "subclass": "champion"})
-    response = player_api.patch(f"{table['url']}/instance", data={"build": level3})
-    assert response.ok, response.text()
-    assert response.json()["instance"]["level"] == 3
-    assert response.json()["sheet"]["summary"]["subclass"] == "Champion"
+    body = level_up(player_api, table["url"], 3)
+    assert body["instance"]["level"] == 3
+    assert body["sheet"]["summary"]["subclass"] == "Champion"
     assert player_api.get(f"/api/characters/{character['id']}").json()["character"]["level"] == 1
 
 
-def test_an_instance_cant_be_saved_unfinished(table, player_api):
+def test_a_level_up_needs_every_new_pick(table, player_api):
     character = new_character(player_api)
     player_api.post(f"{table['url']}/instance", data={"character_id": character["id"]})
-    response = player_api.patch(f"{table['url']}/instance", data={"build": {**aldric(), "level": 3}})
+    level_up(player_api, table["url"], 2)
+    preview = player_api.get(f"{table['url']}/instance/level-up").json()["level_up"]
+    assert preview["subclass_unlocks"] is True
+    response = player_api.post(f"{table['url']}/instance/level-up", data={"build": preview["build"], "hp_method": "average"})
     assert response.status == 400
-    assert response.json()["error"] == "Finish every choice before saving: a character in a campaign can't be a draft."
+    assert response.json()["error"] == "Make every choice for level 3 first."
 
 
 def test_easy_build_instances_can_level_past_three(table, player_api):
     character = player_api.post("/api/characters", data={"build": aldric(), "build_mode": "easy"}).json()["character"]
     player_api.post(f"{table['url']}/instance", data={"character_id": character["id"]})
-
-    def check(build: dict) -> dict:
-        return player_api.post("/api/characters/check", data={"build": build}).json()
-
-    level4 = autofill(check, {**aldric(), "level": 4, "subclass": "champion"})
-    response = player_api.patch(f"{table['url']}/instance", data={"build": level4})
-    assert response.ok, response.text()
-    assert response.json()["instance"]["build_mode"] == "easy"
+    body = level_up(player_api, table["url"], 4)
+    assert body["instance"]["level"] == 4 and body["instance"]["build_mode"] == "easy"
 
 
-def test_the_dm_reads_the_sheet_and_leaves_a_note(table, user_api, player_api, create_user, playwright, base_url):
+def test_the_dm_reads_the_sheet_and_sends_notes(table, user_api, player_api):
     character = new_character(player_api)
     instance = player_api.post(f"{table['url']}/instance", data={"character_id": character["id"]}).json()["instance"]
     url = f"{table['url']}/instances/{instance['id']}"
@@ -390,13 +381,20 @@ def test_the_dm_reads_the_sheet_and_leaves_a_note(table, user_api, player_api, c
     players = user_api.get(table["url"]).json()["campaign"]["players"]
     assert players[0]["name"] == "Mira Thorn" and players[0]["instance"]["id"] == instance["id"]
 
-    response = user_api.put(f"{url}/note", data={"note": "You owe the Zhentarim 50 gold."})
-    assert response.json()["message"] == "Your note on Aldric Vane was saved."
-    assert player_api.get(f"{table['url']}/instance").json()["instance"]["dm_note"] == "You owe the Zhentarim 50 gold."
+    response = user_api.post(f"{url}/notes", data={"body": "You owe the Zhentarim 50 gold."})
+    assert response.status == 201 and response.json()["message"] == "Your note was sent to Mira Thorn."
+    user_api.post(f"{url}/notes", data={"body": "The ghoul's bite is festering."})
+    notes = player_api.get(f"{table['url']}/instance").json()["instance"]["notes"]
+    assert [n["body"] for n in notes] == ["The ghoul's bite is festering.", "You owe the Zhentarim 50 gold."]
+    assert user_api.get(table["url"]).json()["campaign"]["players"][0]["instance"]["latest_note"]["body"] == \
+        "The ghoul's bite is festering."
+    deleted = user_api.delete(f"{url}/notes/{notes[1]['id']}")
+    assert deleted.ok and len(deleted.json()["instance"]["notes"]) == 1
+    assert user_api.post(f"{url}/notes", data={"body": "  "}).status == 400
     # the DM can read, but not change, the character
     assert user_api.patch(f"{table['url']}/instance", data={"current_hp": 0}).status == 403
     # and players can't write DM notes
-    assert player_api.put(f"{url}/note", data={"note": "I'm great"}).status == 403
+    assert player_api.post(f"{url}/notes", data={"body": "I'm great"}).status == 403
 
 
 def test_other_players_see_who_is_playing_but_not_their_sheets(table, user_api, player_api, create_user,

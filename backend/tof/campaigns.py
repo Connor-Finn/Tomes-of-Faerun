@@ -15,36 +15,39 @@
 
     POST   /api/campaigns/<id>/instance             {character_id}  bring one of your characters (party members)
     GET    /api/campaigns/<id>/instance             your character as it stands in this campaign
-    PATCH  /api/campaigns/<id>/instance             {build, build_mode, current_hp, temp_hp}
+    PATCH  /api/campaigns/<id>/instance             {build, build_mode, current_hp, temp_hp}  (earlier picks are
+                                                    locked: see characters/locks.py; level up in levelling.py)
     DELETE /api/campaigns/<id>/instance             take your character out of the campaign
     PUT    /api/campaigns/<id>/instance/roadmap     {roadmap_id, backup, overwrite_backup}  follow a roadmap
     DELETE /api/campaigns/<id>/instance/roadmap     stop following it (the choices made so far stay)
-    POST   /api/campaigns/<id>/instance/roadmap/level-up   take the roadmap's next level
+    POST   /api/campaigns/<id>/instance/roadmap/level-up   {hp_method}  take the roadmap's next level
     PUT    /api/campaigns/<id>/instance/backup      {overwrite}  save a backup copy (one per campaign)
     POST   /api/campaigns/<id>/instance/backup/restore     swap the backup with the current character
     DELETE /api/campaigns/<id>/instance/backup
     GET    /api/campaigns/<id>/instances/<iid>      a player's character, read-only (DM)
-    PUT    /api/campaigns/<id>/instances/<iid>/note {note}  the DM's note on it, which the player sees
+
+Levelling up, XP and the DM's control panel (notes, items, spells, overrides) are in levelling.py.
 
     GET    /api/campaigns/characters/<character_id> the campaigns one of your characters is in
 
 Who sees what (from the plan): the overview and session log are for everyone at the table; the
-encounters and DM notes are the DM's alone. Players manage their own instance; the DM may read it
-and leave a note, but can't change it.
+encounters and DM notes are the DM's alone. Players make their own character's choices; the DM reads
+the sheet and, from the control panel, sets levels and XP, hands out items and spells and sends notes.
 """
 from __future__ import annotations
 
 import copy
 from datetime import date
 
-from flask import Blueprint, abort, g, jsonify
+from flask import Blueprint, abort, g, jsonify, request
 from sqlalchemy import select
 
 from .characters import engine
 from .extensions import db
 from .models import (Campaign, CampaignEncounter, Character, CharacterInstance, InstanceBackup, InstanceRoadmap,
                      MonsterCollection, Party, Roadmap, SessionEntry, utcnow)
-from . import roadmaps
+from . import levelling, roadmaps
+from .characters import locks
 from .bestiary import _collection_summary
 from .parties import is_member, person
 from .security import json_body, login_required, text
@@ -60,7 +63,6 @@ DESCRIPTION_MAX = 4000
 DM_NOTES_MAX = 10000
 SESSION_TITLE_MAX = 100
 SESSION_SUMMARY_MAX = 5000
-INSTANCE_NOTE_MAX = 2000
 
 
 def _invalid(errors: dict[str, str]):
@@ -132,7 +134,9 @@ def _instance_summary(i: CharacterInstance) -> dict:
         "max_hp": max_hp,
         "current_hp": max_hp if i.current_hp is None else min(i.current_hp, max_hp),
         "temp_hp": i.temp_hp,
-        "dm_note": i.dm_note,
+        "latest_note": (levelling.notes(i) or [None])[0],
+        "xp": i.progress.xp if i.progress else 0,
+        "levels_owed": levelling.levels_owed(i),
         "updated_at": _iso(i.updated_at),
     }
 
@@ -171,6 +175,7 @@ def _detail(c: Campaign) -> dict:
     body = {
         **_summary(c),
         "role": "dm" if dm else "player",
+        "rules": levelling.campaign_rules(c),
         "players": players,
         "sessions": [_session_dict(s) for s in c.sessions],
         "my_instance": _instance_summary(mine) if mine and not dm else None,
@@ -438,6 +443,9 @@ def _instance_detail(i: CharacterInstance, mine: bool = False) -> dict:
         }
     return {"instance": {**_instance_summary(i), "build": i.build,
                          "campaign": {"id": i.campaign.id, "name": i.campaign.name},
+                         "rules": levelling.campaign_rules(i.campaign),
+                         "progress": levelling.progress_dict(i),
+                         "notes": levelling.notes(i),
                          "base_character": i.character.to_dict() if i.character else None, **extra},
             **result}
 
@@ -492,44 +500,57 @@ def _hp(data: dict, key: str, high: int) -> int:
     return value
 
 
+# What a player may change about their campaign character outside a level-up (see characters/locks.py)
+EDITABLE = ("name", "alignment", "notes", "equipped", "attuned", "used", "choices", "granted_spells")
+
+
 @bp.patch("/<int:campaign_id>/instance")
 @login_required
 def update_instance(campaign_id: int):
     instance = _my_instance(_as_player(campaign_id))
     data = json_body()
-    if "build" in data or "build_mode" in data:
-        build = data.get("build", instance.build)
-        if not isinstance(build, dict) or ("choices" in build and not isinstance(build["choices"], dict)):
-            abort(400, description="Send the character's build as an object.")
-        mode = data.get("build_mode", instance.build_mode)
-        if mode not in engine.BUILD_MODES:
+    if "build_mode" in data:
+        if data["build_mode"] not in engine.BUILD_MODES:
             abort(400, description="Build mode must be “easy” or “standard”.")
-        cleaned = engine.clean(build)
-        # Easy build's level cap is for creating characters; an instance can keep levelling.
-        result = engine.check(cleaned, build_mode="standard")
+        instance.build_mode = data["build_mode"]
+    if "build" in data:
+        proposed = data["build"]
+        if not isinstance(proposed, dict) or ("choices" in proposed and not isinstance(proposed["choices"], dict)):
+            abort(400, description="Send the character's build as an object.")
+        build = copy.deepcopy(instance.build)
+        for key in EDITABLE:
+            if key in proposed:
+                build[key] = copy.deepcopy(proposed[key])
+        build = engine.clean(build)
+        p = instance.progress
+        problems = locks.locked_changes(instance.build, build, level_up=False,
+                                        copyable=set(p.granted_spells or []) if p else set())
+        # Anything else that differs (race, level...) is locked too
+        for key in ("level", "race", "subrace", "class", "subclass", "background", "ability_scores", "items",
+                    "given", "hp_levels"):
+            if key in proposed and (proposed[key] or None) != (instance.build.get(key) or None) and \
+                    not any(x["field"] == key for x in problems):
+                problems.append({"field": key, "message": "That's locked in a campaign. New levels come with Level Up."})
+        if problems:
+            return jsonify(error="Earlier picks are locked in a campaign.", errors=problems), 400
+        result = engine.check(build)
         if not result["valid"]:
-            return jsonify(error="That build breaks the rules.", errors=result["errors"]), 400
+            return jsonify(error="That change breaks the rules.", errors=result["errors"]), 400
         if not result["complete"]:
             return jsonify(error="Finish every choice before saving: a character in a campaign can't be a draft.",
                            errors=result["missing"]), 400
-        message = None
-        if cleaned != instance.build and instance.following is not None:
-            # Choosing by hand means the roadmap no longer decides: stop following it.
-            message = f"{instance.name} stopped following the roadmap “{instance.following.roadmap.name}”."
-            instance.following = None
-        instance.build = cleaned
-        instance.name = cleaned["name"] or instance.name
-        instance.build_mode = mode
-    else:
-        message = None
+        instance.build = build
+        instance.name = build["name"] or instance.name
     max_hp = engine.check(instance.build)["sheet"]["hit_points"]
     if "current_hp" in data:
         instance.current_hp = _hp(data, "current_hp", max_hp)
+    elif instance.current_hp is not None and instance.current_hp > max_hp:
+        instance.current_hp = max_hp
     if "temp_hp" in data:
         instance.temp_hp = _hp(data, "temp_hp", 999)
     instance.updated_at = utcnow()
     db.session.commit()
-    return jsonify(**_instance_detail(instance, mine=True), **({"message": message} if message else {}))
+    return jsonify(**_instance_detail(instance, mine=True))
 
 
 @bp.delete("/<int:campaign_id>/instance")
@@ -584,12 +605,20 @@ def follow_roadmap(campaign_id: int):
     if not roadmap.start_level <= level <= roadmap.end_level:
         return _invalid({"roadmap_id": f"“{roadmap.name}” plans levels {roadmap.start_level} to {roadmap.end_level}, "
                                        f"but {instance.name} is level {level} here. Plan up to level {level} first."})
-    build = roadmaps.followed_build(instance.build, roadmap.levels, level)
+    build = levelling.carry_possessions(roadmaps.followed_build(instance.build, roadmap.levels, level), instance.build)
     result = engine.check(build)
     if not result["complete"]:
         return jsonify(error=f"“{roadmap.name}” doesn't fit {instance.name} at level {level}. "
                              f"Fix it in the Character Manager first.",
                        errors=result["errors"] + result["missing"]), 400
+    # Earlier picks are locked in a campaign: a roadmap can take over the level-ups to come, but only
+    # if its plan for the level the character is at matches the choices they already made.
+    problems = locks.locked_changes(instance.build, build, level_up=False)
+    if problems:
+        return jsonify(error=f"“{roadmap.name}” plans level {level} differently from how {instance.name} is now. "
+                             f"Earlier picks are locked in a campaign, so you can only follow a roadmap that matches "
+                             f"them. Change the roadmap in the Character Manager first.",
+                       errors=problems), 400
     if data.get("backup"):
         if instance.backup is not None and not data.get("overwrite_backup"):
             return _backup_conflict(instance)
@@ -618,26 +647,23 @@ def unfollow_roadmap(campaign_id: int):
 @bp.post("/<int:campaign_id>/instance/roadmap/level-up")
 @login_required
 def roadmap_level_up(campaign_id: int):
+    """Take the roadmap's next level: the same guided level-up, with the roadmap's picks."""
     campaign = _as_player(campaign_id)
     instance = _my_instance(campaign)
     if instance.following is None:
-        abort(400, description=f"{instance.name} isn't following a roadmap. Level up in the builder instead.")
+        abort(400, description=f"{instance.name} isn't following a roadmap. Use Level Up instead.")
     roadmap = instance.following.roadmap
     level = instance.build.get("level", 1) + 1
     if str(level) not in roadmap.levels:
         abort(400, description=f"“{roadmap.name}” stops at level {roadmap.end_level}. Plan level {level} in the "
                                f"Character Manager, or stop following it and level up by hand.")
-    build = roadmaps.followed_build(instance.build, roadmap.levels, level)
-    result = engine.check(build)
-    if not result["complete"]:
-        return jsonify(error=f"Level {level} of “{roadmap.name}” doesn't fit {instance.name}. "
-                             f"Fix it in the Character Manager first.",
-                       errors=result["errors"] + result["missing"]), 400
-    instance.build = build
-    instance.updated_at = utcnow()
-    db.session.commit()
-    return jsonify(message=f"{instance.name} is now level {level} in {campaign.name}, following “{roadmap.name}”.",
-                   **_instance_detail(instance, mine=True))
+    data = request.get_json(silent=True) or {}   # the body is optional here
+    methods = levelling.campaign_rules(campaign)["hp_methods"]
+    hp_method = data.get("hp_method") or ("average" if "average" in methods else methods[0])
+    outcome = levelling.take_level(instance, None, hp_method)
+    if not isinstance(outcome, str):
+        return outcome
+    return jsonify(message=outcome, **_instance_detail(instance, mine=True))
 
 
 @bp.put("/<int:campaign_id>/instance/backup")
@@ -662,7 +688,12 @@ def restore_backup(campaign_id: int):
         abort(404, description="There's no backup to restore.")
     current = (instance.name, copy.deepcopy(instance.build), instance.build_mode, instance.current_hp, instance.temp_hp,
                instance.following.roadmap_id if instance.following else None)
-    instance.name, instance.build, instance.build_mode = b.name, copy.deepcopy(b.build), b.build_mode
+    # Items, DM gifts and granted spells belong to the character now, not to the copy being swapped in
+    instance.name, instance.build, instance.build_mode = b.name, levelling.carry_possessions(b.build, current[1]), b.build_mode
+    if instance.progress is not None:
+        level = instance.build.get("level", 1)
+        instance.progress.history = {k: v for k, v in (instance.progress.history or {}).items() if int(k) < level}
+        instance.progress.hp_roll = None
     instance.current_hp, instance.temp_hp = b.current_hp, b.temp_hp
     roadmap = db.session.get(Roadmap, b.roadmap_id) if b.roadmap_id else None
     _follow(instance, roadmap.id if roadmap is not None and roadmap.character_id == instance.character_id else None)
@@ -701,19 +732,6 @@ def view_instance(campaign_id: int, instance_id: int):
     if not _is_dm(campaign) and instance.user_id != g.user.id:
         abort(403, description="Only the Dungeon Master can read other players' characters.")
     return jsonify(_instance_detail(instance))
-
-
-@bp.put("/<int:campaign_id>/instances/<int:instance_id>/note")
-@login_required
-def set_instance_note(campaign_id: int, instance_id: int):
-    campaign = _run(campaign_id)
-    instance = _players_instance(campaign, instance_id)
-    note = str(json_body().get("note") or "").strip()
-    if len(note) > INSTANCE_NOTE_MAX:
-        return _invalid({"note": f"Keep the note to {INSTANCE_NOTE_MAX} characters or fewer."})
-    instance.dm_note = note
-    db.session.commit()
-    return jsonify(message=f"Your note on {instance.name} was saved.", **_instance_detail(instance))
 
 
 # ---------------------------------------------------------------------------
