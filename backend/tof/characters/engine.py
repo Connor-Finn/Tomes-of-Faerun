@@ -855,6 +855,13 @@ def clean(build: dict) -> dict:
     return out
 
 
+def worn(a: Analysis) -> dict:
+    """What the character wears. Until the player says, that's the best armour they own."""
+    if "equipped" not in a.build:
+        return default_equipped(a.inventory)
+    return a.build.get("equipped") or {}
+
+
 def default_equipped(inventory: dict[str, int]) -> dict:
     """Wear the best armour and a shield, if the character owns them."""
     armors = [rules.get("equipment", i) for i in inventory]
@@ -911,7 +918,7 @@ def sheet(a: Analysis) -> dict:
         hp_notes.append("Draconic Resilience")
 
     inventory = _inventory(a)
-    equipped = b.get("equipped") or {}
+    equipped = worn(a)
     armor = rules.get("equipment", equipped["armor"]) if equipped.get("armor") and equipped["armor"] in a.inventory else None
     shield = rules.get("equipment", equipped["shield"]) if equipped.get("shield") and equipped["shield"] in a.inventory else None
     ac, ac_note = _armor_class(mods, armor, shield, feature_ids)
@@ -980,7 +987,7 @@ def _armor_class(mods: dict, armor: dict | None, shield: dict | None, features: 
 
 
 def _inventory(a: Analysis) -> list[dict]:
-    equipped = set((a.build.get("equipped") or {}).values())
+    equipped = set(worn(a).values())
     out = []
     for index, qty in a.inventory.items():
         item = rules.get("equipment", index)

@@ -275,3 +275,13 @@ def test_easy_build_creates_characters_up_to_level_3():
     assert check(blank(level=4), build_mode="standard")["valid"]
     # A character that is already higher can still switch to Easy build
     assert check(blank(level=8), build_mode="easy", previous_level=8)["valid"]
+
+
+def test_best_armour_is_worn_until_the_player_says_otherwise():
+    build = aldric()
+    del build["equipped"]
+    sheet = check(build)["sheet"]
+    assert sheet["equipped"] == {"armor": "chain-mail", "shield": "shield"}
+    assert sheet["armor_class"] == 18
+    build["equipped"] = {"armor": None, "shield": None}
+    assert check(build)["sheet"]["armor_class"] == 12   # unarmoured: 10 + DEX 2
