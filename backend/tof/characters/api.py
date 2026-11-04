@@ -3,8 +3,10 @@
     GET    /api/characters/options      races, classes, backgrounds... for the builder's first choices
     GET    /api/characters/templates    premade characters to start from
     POST   /api/characters/check        analyse a build without saving it (the builder calls this live)
+                                        {build, build_mode, previous_level}
     GET    /api/characters              your characters
     POST   /api/characters              create one, from a build, a template, or a published character {published: id}
+                                        (a published character's roadmaps come with it)
     GET    /api/characters/<id>         the character, its sheet and its open choices
     PATCH  /api/characters/<id>         change the build, the name or the build mode
     DELETE /api/characters/<id>
@@ -94,7 +96,11 @@ def _build(data: dict) -> dict:
 @login_required
 def check():
     data = json_body()
-    return jsonify(engine.check(_build(data), build_mode=_build_mode(data, "standard")))
+    # previous_level: the level the character already had (Easy build's cap only applies to new levels
+    # at creation; a campaign copy or a roadmap sends 20, since they're past creation)
+    previous = data.get("previous_level", 0)
+    previous = previous if isinstance(previous, int) and not isinstance(previous, bool) else 0
+    return jsonify(engine.check(_build(data), build_mode=_build_mode(data, "standard"), previous_level=previous))
 
 
 def _owned(character_id: int) -> Character:
@@ -164,6 +170,9 @@ def create():
     db.session.add(character)
     if published is not None:
         published.copies += 1
+        from ..models import Roadmap
+        character.roadmaps = [Roadmap(name=r.name, start_level=r.start_level, levels=copy.deepcopy(r.levels))
+                              for r in published.roadmaps]
     db.session.commit()
     return jsonify(_detail(character)), 201
 

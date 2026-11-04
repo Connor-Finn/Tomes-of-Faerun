@@ -47,6 +47,8 @@ export function App() {
         <Route path="play/characters/new" element={<RequireAuth><Builder /></RequireAuth>} />
         <Route path="play/characters/c/:id/edit" element={<RequireAuth><Builder /></RequireAuth>} />
         <Route path="play/characters/c/:id/:page?" element={<RequireAuth><CharacterTome /></RequireAuth>} />
+        <Route path="play/characters/c/:id/:page/:sub" element={<RequireAuth><CharacterTome /></RequireAuth>} />
+        <Route path="play/characters/c/:id/roadmaps/:roadmapId/level/:level" element={<RequireAuth><Builder /></RequireAuth>} />
 
         {/* Each campaign is its own tome, with a DM edition and a player edition */}
         <Route path="dm/campaigns/c/:id/:page?" element={<RequireAuth><CampaignTome mode="dm" /></RequireAuth>} />

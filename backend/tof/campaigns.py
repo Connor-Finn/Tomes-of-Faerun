@@ -17,6 +17,12 @@
     GET    /api/campaigns/<id>/instance             your character as it stands in this campaign
     PATCH  /api/campaigns/<id>/instance             {build, build_mode, current_hp, temp_hp}
     DELETE /api/campaigns/<id>/instance             take your character out of the campaign
+    PUT    /api/campaigns/<id>/instance/roadmap     {roadmap_id, backup, overwrite_backup}  follow a roadmap
+    DELETE /api/campaigns/<id>/instance/roadmap     stop following it (the choices made so far stay)
+    POST   /api/campaigns/<id>/instance/roadmap/level-up   take the roadmap's next level
+    PUT    /api/campaigns/<id>/instance/backup      {overwrite}  save a backup copy (one per campaign)
+    POST   /api/campaigns/<id>/instance/backup/restore     swap the backup with the current character
+    DELETE /api/campaigns/<id>/instance/backup
     GET    /api/campaigns/<id>/instances/<iid>      a player's character, read-only (DM)
     PUT    /api/campaigns/<id>/instances/<iid>/note {note}  the DM's note on it, which the player sees
 
@@ -36,8 +42,9 @@ from sqlalchemy import select
 
 from .characters import engine
 from .extensions import db
-from .models import (Campaign, CampaignEncounter, Character, CharacterInstance, MonsterCollection, Party,
-                     SessionEntry, utcnow)
+from .models import (Campaign, CampaignEncounter, Character, CharacterInstance, InstanceBackup, InstanceRoadmap,
+                     MonsterCollection, Party, Roadmap, SessionEntry, utcnow)
+from . import roadmaps
 from .bestiary import _collection_summary
 from .parties import is_member, person
 from .security import json_body, login_required, text
@@ -397,11 +404,41 @@ def detach_collection(campaign_id: int, collection_id: int):
 # ---------------------------------------------------------------------------
 # Character instances
 # ---------------------------------------------------------------------------
-def _instance_detail(i: CharacterInstance) -> dict:
+def _following(i: CharacterInstance) -> dict | None:
+    if i.following is None:
+        return None
+    r = i.following.roadmap
+    level = i.build.get("level", 1)
+    return {"roadmap_id": r.id, "name": r.name, "start_level": r.start_level, "end_level": r.end_level,
+            "next_level": level + 1 if str(level + 1) in r.levels else None,
+            "followed_at": _iso(i.following.followed_at)}
+
+
+def _backup_dict(b: InstanceBackup) -> dict:
+    s = engine.check(b.build)["sheet"]
+    return {"name": b.name, "level": b.build.get("level", 1),
+            "race": s["summary"]["subrace"] or s["summary"]["race"], "class": s["summary"]["class"],
+            "subclass": s["summary"]["subclass"], "build_mode": b.build_mode,
+            "max_hp": s["hit_points"],
+            "current_hp": s["hit_points"] if b.current_hp is None else min(b.current_hp, s["hit_points"]),
+            "temp_hp": b.temp_hp, "reason": b.reason, "saved_at": _iso(b.created_at)}
+
+
+def _instance_detail(i: CharacterInstance, mine: bool = False) -> dict:
     result = engine.check(i.build, build_mode=i.build_mode, previous_level=i.build.get("level", 1))
+    extra = {}
+    if mine:
+        level = i.build.get("level", 1)
+        extra = {
+            "following": _following(i),
+            "backup": _backup_dict(i.backup) if i.backup else None,
+            # The base character's roadmaps, and whether each one plans the level the instance is at
+            "roadmaps": [{**roadmaps.summary(r), "covers_level": r.start_level <= level <= r.end_level}
+                         for r in (i.character.roadmaps if i.character else [])],
+        }
     return {"instance": {**_instance_summary(i), "build": i.build,
                          "campaign": {"id": i.campaign.id, "name": i.campaign.name},
-                         "base_character": i.character.to_dict() if i.character else None},
+                         "base_character": i.character.to_dict() if i.character else None, **extra},
             **result}
 
 
@@ -438,13 +475,13 @@ def join_with_character(campaign_id: int):
     )
     db.session.add(instance)
     db.session.commit()
-    return jsonify(message=f"{character.name} joined {campaign.name}.", **_instance_detail(instance)), 201
+    return jsonify(message=f"{character.name} joined {campaign.name}.", **_instance_detail(instance, mine=True)), 201
 
 
 @bp.get("/<int:campaign_id>/instance")
 @login_required
 def my_instance(campaign_id: int):
-    return jsonify(_instance_detail(_my_instance(_as_player(campaign_id))))
+    return jsonify(_instance_detail(_my_instance(_as_player(campaign_id)), mine=True))
 
 
 def _hp(data: dict, key: str, high: int) -> int:
@@ -475,9 +512,16 @@ def update_instance(campaign_id: int):
         if not result["complete"]:
             return jsonify(error="Finish every choice before saving: a character in a campaign can't be a draft.",
                            errors=result["missing"]), 400
+        message = None
+        if cleaned != instance.build and instance.following is not None:
+            # Choosing by hand means the roadmap no longer decides: stop following it.
+            message = f"{instance.name} stopped following the roadmap “{instance.following.roadmap.name}”."
+            instance.following = None
         instance.build = cleaned
         instance.name = cleaned["name"] or instance.name
         instance.build_mode = mode
+    else:
+        message = None
     max_hp = engine.check(instance.build)["sheet"]["hit_points"]
     if "current_hp" in data:
         instance.current_hp = _hp(data, "current_hp", max_hp)
@@ -485,7 +529,7 @@ def update_instance(campaign_id: int):
         instance.temp_hp = _hp(data, "temp_hp", 999)
     instance.updated_at = utcnow()
     db.session.commit()
-    return jsonify(_instance_detail(instance))
+    return jsonify(**_instance_detail(instance, mine=True), **({"message": message} if message else {}))
 
 
 @bp.delete("/<int:campaign_id>/instance")
@@ -496,6 +540,150 @@ def leave_with_character(campaign_id: int):
     db.session.delete(instance)
     db.session.commit()
     return jsonify(message=f"{instance.name} left {campaign.name}. Your character in the Character Manager is unchanged.")
+
+
+# ---------------------------------------------------------------------------
+# Following a roadmap, and the backup copy
+# ---------------------------------------------------------------------------
+def _save_backup(instance: CharacterInstance, reason: str) -> None:
+    if instance.backup is None:
+        instance.backup = InstanceBackup(name=instance.name, build={})
+    b = instance.backup
+    b.name, b.build, b.build_mode = instance.name, copy.deepcopy(instance.build), instance.build_mode
+    b.current_hp, b.temp_hp = instance.current_hp, instance.temp_hp
+    b.roadmap_id = instance.following.roadmap_id if instance.following else None
+    b.reason, b.created_at = reason, utcnow()
+
+
+def _follow(instance: CharacterInstance, roadmap_id: int | None) -> None:
+    """Point the instance at a roadmap (or none), reusing the row so its key never clashes."""
+    if roadmap_id is None:
+        instance.following = None
+    elif instance.following is None:
+        instance.following = InstanceRoadmap(roadmap_id=roadmap_id)
+    else:
+        instance.following.roadmap_id, instance.following.followed_at = roadmap_id, utcnow()
+
+
+def _backup_conflict(instance: CharacterInstance):
+    return jsonify(error=f"{instance.name} already has a backup in this campaign. Saving a new one replaces it.",
+                   backup=_backup_dict(instance.backup), needs="overwrite"), 409
+
+
+@bp.put("/<int:campaign_id>/instance/roadmap")
+@login_required
+def follow_roadmap(campaign_id: int):
+    campaign = _as_player(campaign_id)
+    instance = _my_instance(campaign)
+    data = json_body()
+    rid = data.get("roadmap_id")
+    roadmap = db.session.get(Roadmap, rid) if isinstance(rid, int) and not isinstance(rid, bool) else None
+    if roadmap is None or instance.character_id is None or roadmap.character_id != instance.character_id:
+        return _invalid({"roadmap_id": f"Choose one of {instance.name}'s roadmaps."})
+    level = instance.build.get("level", 1)
+    if not roadmap.start_level <= level <= roadmap.end_level:
+        return _invalid({"roadmap_id": f"“{roadmap.name}” plans levels {roadmap.start_level} to {roadmap.end_level}, "
+                                       f"but {instance.name} is level {level} here. Plan up to level {level} first."})
+    build = roadmaps.followed_build(instance.build, roadmap.levels, level)
+    result = engine.check(build)
+    if not result["complete"]:
+        return jsonify(error=f"“{roadmap.name}” doesn't fit {instance.name} at level {level}. "
+                             f"Fix it in the Character Manager first.",
+                       errors=result["errors"] + result["missing"]), 400
+    if data.get("backup"):
+        if instance.backup is not None and not data.get("overwrite_backup"):
+            return _backup_conflict(instance)
+        _save_backup(instance, f"Before following “{roadmap.name}”")
+    instance.build = build
+    _follow(instance, roadmap.id)
+    instance.updated_at = utcnow()
+    db.session.commit()
+    saved = " Your previous choices were saved as the backup." if data.get("backup") else ""
+    return jsonify(message=f"{instance.name} now follows “{roadmap.name}”.{saved}", **_instance_detail(instance, mine=True))
+
+
+@bp.delete("/<int:campaign_id>/instance/roadmap")
+@login_required
+def unfollow_roadmap(campaign_id: int):
+    instance = _my_instance(_as_player(campaign_id))
+    if instance.following is None:
+        abort(400, description=f"{instance.name} isn't following a roadmap.")
+    name = instance.following.roadmap.name
+    instance.following = None
+    db.session.commit()
+    return jsonify(message=f"{instance.name} stopped following “{name}”. Their choices so far stay as they are.",
+                   **_instance_detail(instance, mine=True))
+
+
+@bp.post("/<int:campaign_id>/instance/roadmap/level-up")
+@login_required
+def roadmap_level_up(campaign_id: int):
+    campaign = _as_player(campaign_id)
+    instance = _my_instance(campaign)
+    if instance.following is None:
+        abort(400, description=f"{instance.name} isn't following a roadmap. Level up in the builder instead.")
+    roadmap = instance.following.roadmap
+    level = instance.build.get("level", 1) + 1
+    if str(level) not in roadmap.levels:
+        abort(400, description=f"“{roadmap.name}” stops at level {roadmap.end_level}. Plan level {level} in the "
+                               f"Character Manager, or stop following it and level up by hand.")
+    build = roadmaps.followed_build(instance.build, roadmap.levels, level)
+    result = engine.check(build)
+    if not result["complete"]:
+        return jsonify(error=f"Level {level} of “{roadmap.name}” doesn't fit {instance.name}. "
+                             f"Fix it in the Character Manager first.",
+                       errors=result["errors"] + result["missing"]), 400
+    instance.build = build
+    instance.updated_at = utcnow()
+    db.session.commit()
+    return jsonify(message=f"{instance.name} is now level {level} in {campaign.name}, following “{roadmap.name}”.",
+                   **_instance_detail(instance, mine=True))
+
+
+@bp.put("/<int:campaign_id>/instance/backup")
+@login_required
+def save_backup(campaign_id: int):
+    instance = _my_instance(_as_player(campaign_id))
+    if instance.backup is not None and not json_body().get("overwrite"):
+        return _backup_conflict(instance)
+    _save_backup(instance, "Saved by hand")
+    db.session.commit()
+    return jsonify(message=f"Backup saved: {instance.name} at level {instance.build.get('level', 1)}.",
+                   **_instance_detail(instance, mine=True))
+
+
+@bp.post("/<int:campaign_id>/instance/backup/restore")
+@login_required
+def restore_backup(campaign_id: int):
+    """Swap the backup with the current character, so restoring never loses anything."""
+    instance = _my_instance(_as_player(campaign_id))
+    b = instance.backup
+    if b is None:
+        abort(404, description="There's no backup to restore.")
+    current = (instance.name, copy.deepcopy(instance.build), instance.build_mode, instance.current_hp, instance.temp_hp,
+               instance.following.roadmap_id if instance.following else None)
+    instance.name, instance.build, instance.build_mode = b.name, copy.deepcopy(b.build), b.build_mode
+    instance.current_hp, instance.temp_hp = b.current_hp, b.temp_hp
+    roadmap = db.session.get(Roadmap, b.roadmap_id) if b.roadmap_id else None
+    _follow(instance, roadmap.id if roadmap is not None and roadmap.character_id == instance.character_id else None)
+    b.name, b.build, b.build_mode, b.current_hp, b.temp_hp, b.roadmap_id = current
+    b.reason, b.created_at = "Swapped out by a restore", utcnow()
+    instance.updated_at = utcnow()
+    db.session.commit()
+    return jsonify(message=f"Backup restored: {instance.name} is level {instance.build.get('level', 1)} again. "
+                           f"The character you swapped out is now the backup.",
+                   **_instance_detail(instance, mine=True))
+
+
+@bp.delete("/<int:campaign_id>/instance/backup")
+@login_required
+def delete_backup(campaign_id: int):
+    instance = _my_instance(_as_player(campaign_id))
+    if instance.backup is None:
+        abort(404, description="There's no backup to delete.")
+    instance.backup = None
+    db.session.commit()
+    return jsonify(message="Backup deleted.", **_instance_detail(instance, mine=True))
 
 
 def _players_instance(campaign: Campaign, instance_id: int) -> CharacterInstance:

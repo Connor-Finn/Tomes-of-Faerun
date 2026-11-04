@@ -5,6 +5,7 @@ import { PLAYER_PARTIES_PATH, instanceLine, type Campaign, type InstanceDetail, 
 import { BUILD_MODE_LABELS, characterPath, describe, type CharacterSummary } from "../../lib/characters";
 import { useFlash } from "../../lib/flash";
 import { ConfirmDialog } from "../bestiary/ConfirmDialog";
+import { BackupPanel, RoadmapPanel } from "./InstanceRoadmap";
 import { FeaturesPage, InventoryPage, PageHeading, SheetPage, ShowPageHeading, SpellbookPage } from "../characters/CharacterTome";
 
 const TABS = [
@@ -328,6 +329,8 @@ function PlayerControls({
         )}
         .
       </p>
+      <RoadmapPanel campaign={campaign} detail={detail} onChange={onChange} />
+      <BackupPanel campaign={campaign} detail={detail} onChange={onChange} />
       {leaving && (
         <ConfirmDialog
           title={`Take ${i.name} out of ${campaign.name}?`}
@@ -341,7 +344,7 @@ function PlayerControls({
           }}
         >
           <p>
-            Everything {i.name} gained in this campaign (levels, hit points, items) is lost. Your character in the
+            Everything {i.name} gained in this campaign (levels, hit points, items) is lost, and so is the backup copy. Your character in the
             Character Manager is unchanged, and you can bring a character again. To leave the whole party, use the{" "}
             <Link to={PLAYER_PARTIES_PATH}>Parties</Link> page.
           </p>

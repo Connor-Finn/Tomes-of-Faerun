@@ -2,25 +2,28 @@
 
     GET    /api/published                 every published character  ?q=<name or author>&class=<index>
     GET    /api/published/mine            the characters you've published
-    POST   /api/published                 {character_id, summary}   publish one of your finished characters
+    POST   /api/published                 {character_id, summary, roadmap_ids}   publish one of your finished
+                                          characters, with none, some or all of its level roadmaps
     DELETE /api/published/<id>            unpublish (copies other players already made are theirs to keep)
 
 Copying one into your own characters is POST /api/characters {published: <id>}, which works exactly
 like starting from a premade template.
 
 Publishing takes a snapshot of the build (choices, equipment, spells and notes). Later edits to the
-author's character never change it. Level roadmaps will be attachable once roadmaps exist.
+author's character never change it. Attached roadmaps are snapshots too, and a copy of the character
+gets its own copies of them.
 """
 from __future__ import annotations
 
 import copy
+import json
 
 from flask import Blueprint, abort, g, jsonify, request
 from sqlalchemy import select
 
 from .characters import engine
 from .extensions import db
-from .models import Character, PublishedCharacter
+from .models import Character, PublishedCharacter, PublishedRoadmap, Roadmap
 from .parties import person
 from .security import json_body, login_required, text
 
@@ -49,9 +52,15 @@ def summary(p: PublishedCharacter) -> dict:
         "hit_points": sheet["hit_points"],
         "armor_class": sheet["armor_class"],
         "copies": p.copies,
+        "roadmaps": [{"name": r.name, "start_level": r.start_level, "end_level": max(int(k) for k in r.levels)}
+                     for r in p.roadmaps],
         "character_id": p.character_id if p.author_id == g.user.id else None,
         "published_at": p.created_at.isoformat() + "Z",
     }
+
+
+def _roadmap_shape(roadmaps) -> list[str]:
+    return sorted(json.dumps([r.name, r.levels], sort_keys=True) for r in roadmaps)
 
 
 def get_published(published_id) -> PublishedCharacter:
@@ -106,13 +115,24 @@ def publish():
         return jsonify(error=error, errors={"summary": error}), 400
     if len(g.user.published) >= MAX_PUBLISHED:
         abort(400, description=f"You can have up to {MAX_PUBLISHED} published characters. Unpublish one to make room.")
-    if any(p.character_id == character.id and p.build == character.build for p in g.user.published):
+    ids = data.get("roadmap_ids") or []
+    if not isinstance(ids, list) or not all(isinstance(i, int) and not isinstance(i, bool) for i in ids):
+        abort(400, description="Send the roadmaps to include as a list of ids.")
+    by_id = {r.id: r for r in character.roadmaps}
+    if any(i not in by_id for i in ids):
+        error = f"Choose roadmaps that belong to {character.name}."
+        return jsonify(error=error, errors={"roadmap_ids": error}), 400
+    chosen = [by_id[i] for i in sorted(set(ids))]
+    shape = _roadmap_shape(chosen)
+    if any(p.character_id == character.id and p.build == character.build
+           and _roadmap_shape(p.roadmaps) == shape for p in g.user.published):
         error = f"{character.name} is already published exactly as it is now."
         return jsonify(error=error, errors={"character_id": error}), 400
 
     published = PublishedCharacter(
         author_id=g.user.id, character_id=character.id, name=character.name, summary=blurb,
-        build=copy.deepcopy(character.build), build_mode=character.build_mode)
+        build=copy.deepcopy(character.build), build_mode=character.build_mode,
+        roadmaps=[PublishedRoadmap(name=r.name, start_level=r.start_level, levels=copy.deepcopy(r.levels)) for r in chosen])
     db.session.add(published)
     db.session.commit()
     return jsonify(message=f"{published.name} is published. Other players can now start from it.",

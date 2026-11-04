@@ -11,9 +11,15 @@ import {
 } from "../../lib/characters";
 import { useFlash } from "../../lib/flash";
 import type { PublishedCharacter } from "../../lib/published";
+import { levelRange, roadmapsPath, type RoadmapSummary } from "../../lib/roadmaps";
 import { ConfirmDialog } from "../bestiary/ConfirmDialog";
 
 const SUMMARY_MAX = 300;
+
+/** "Champion route (levels 1 to 6), Tank (levels 1 to 3)" */
+function roadmapsLine(p: PublishedCharacter): string {
+  return p.roadmaps.map((r) => `${r.name} (${levelRange(r).toLowerCase()})`).join(", ");
+}
 
 function copiesLine(n: number): string {
   if (n === 0) return "Not copied yet";
@@ -38,6 +44,8 @@ export function PublishCharacter() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [confirming, setConfirming] = useState(false);
   const [unpublishing, setUnpublishing] = useState<PublishedCharacter | null>(null);
+  const [roadmaps, setRoadmaps] = useState<RoadmapSummary[] | null>(null);
+  const [roadmapIds, setRoadmapIds] = useState<number[]>([]);
 
   const loadPublished = useCallback(async () => {
     const res = await api.get<{ published: PublishedCharacter[] }>("/api/published/mine");
@@ -54,6 +62,18 @@ export function PublishCharacter() {
   const finished = characters?.filter((c) => c.status === "complete") ?? [];
   const drafts = characters?.filter((c) => c.status === "draft") ?? [];
   const chosen = finished.find((c) => String(c.id) === characterId) ?? null;
+  const chosenId = chosen?.id;
+
+  // Step 2: the chosen character's roadmaps, none ticked to start with
+  useEffect(() => {
+    setRoadmaps(null);
+    setRoadmapIds([]);
+    if (!chosenId) return;
+    void api.get<{ roadmaps: RoadmapSummary[] }>(`/api/characters/${chosenId}/roadmaps`).then((res) => {
+      if (res.ok) setRoadmaps(res.data.roadmaps);
+    });
+  }, [chosenId]);
+  const included = (roadmaps ?? []).filter((r) => roadmapIds.includes(r.id));
 
   function review(e: FormEvent) {
     e.preventDefault();
@@ -68,6 +88,7 @@ export function PublishCharacter() {
     const res = await api.post<{ message: string; published: PublishedCharacter }>("/api/published", {
       character_id: Number(characterId),
       summary,
+      roadmap_ids: roadmapIds,
     });
     if (!res.ok) {
       setErrors(res.data.errors ?? {});
@@ -154,9 +175,37 @@ export function PublishCharacter() {
               </p>
             )}
           </div>
-          <p className="hint" data-testid="roadmap-note">
-            Level roadmaps aren't written yet. Once they are, you'll choose which ones to include here.
-          </p>
+{chosen && (
+            <fieldset className="field" data-testid="publish-roadmaps">
+              <legend>Level roadmaps to include</legend>
+              {roadmaps === null ? (
+                <p className="muted small">Looking for roadmaps…</p>
+              ) : roadmaps.length === 0 ? (
+                <p className="hint" data-testid="roadmap-note">
+                  {chosen.name} has no roadmaps.{" "}
+                  <Link to={roadmapsPath(chosen.id)}>Plan some</Link> to share a levelling route along with the character.
+                </p>
+              ) : (
+                <>
+                  <p className="hint" data-testid="roadmap-note">
+                    Include none, some or all. Players who copy {chosen.name} get their own copies of the ones you tick.
+                  </p>
+                  {roadmaps.map((r) => (
+                    <label key={r.id} className="check">
+                      <input
+                        type="checkbox"
+                        checked={roadmapIds.includes(r.id)}
+                        onChange={(e) =>
+                          setRoadmapIds((ids) => (e.target.checked ? [...ids, r.id] : ids.filter((x) => x !== r.id)))
+                        }
+                      />
+                      {r.name} <span className="muted small">({levelRange(r).toLowerCase()})</span>
+                    </label>
+                  ))}
+                </>
+              )}
+            </fieldset>
+          )}
           <button type="submit" className="btn primary">
             Publish…
           </button>
@@ -177,6 +226,11 @@ export function PublishCharacter() {
                 <h4 className="template-name">{p.name}</h4>
                 <p className="character-line">{templateLine(p)}</p>
                 {p.summary && <p className="small">{p.summary}</p>}
+                {p.roadmaps.length > 0 && (
+                  <p className="small" data-testid="published-roadmaps">
+                    Roadmaps: {roadmapsLine(p)}
+                  </p>
+                )}
                 <p className="small muted" data-testid="published-facts">
                   Published {longDate(p.published_at)} · {copiesLine(p.copies)}
                 </p>
@@ -213,8 +267,14 @@ export function PublishCharacter() {
             Every player will be able to copy {chosen.name} ({describe(chosen)}) as their own character, including
             its notes. Your author name is shown with it.
           </p>
+          <p data-testid="publish-roadmaps-summary">
+            {included.length === 0
+              ? "No level roadmaps are included."
+              : `Included roadmap${included.length === 1 ? "" : "s"}: ${included.map((r) => r.name).join(", ")}.`}
+          </p>
           <p>
-            The template is a fixed copy: editing {chosen.name} later won't change it. You can unpublish it at any
+            The template is a fixed copy: editing {chosen.name} later won't change it, and neither will changing its
+            roadmaps. You can unpublish it at any
             time, and players keep the copies they've made.
           </p>
         </ConfirmDialog>
@@ -333,6 +393,11 @@ export function PublishedCharacters() {
                   Published by {p.mine ? "you" : p.author.name}
                 </p>
                 {p.summary && <p className="small">{p.summary}</p>}
+                {p.roadmaps.length > 0 && (
+                  <p className="small" data-testid="published-roadmaps">
+                    Comes with roadmaps: {roadmapsLine(p)}
+                  </p>
+                )}
                 <p className="small muted">
                   {p.hit_points} hit points · armour class {p.armor_class} · {copiesLine(p.copies)}
                 </p>
