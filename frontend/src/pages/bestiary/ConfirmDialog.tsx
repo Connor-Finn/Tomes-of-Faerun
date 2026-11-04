@@ -8,6 +8,7 @@ export function ConfirmDialog({
   cancelLabel = "Keep it",
   onConfirm,
   onClose,
+  tone = "danger",
 }: {
   title: string;
   children: ReactNode;
@@ -16,6 +17,8 @@ export function ConfirmDialog({
   /** Return an error message to keep the dialog open, or nothing when it worked. */
   onConfirm: () => Promise<string | void>;
   onClose: () => void;
+  /** "primary" for a friendly yes (asking to join a party), "danger" for things that can't be undone. */
+  tone?: "danger" | "primary";
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const [error, setError] = useState<string | null>(null);
@@ -45,7 +48,7 @@ export function ConfirmDialog({
           <button type="button" className="btn ghost" onClick={() => ref.current?.close()}>
             {cancelLabel}
           </button>
-          <button type="submit" className="btn danger">
+          <button type="submit" className={`btn ${tone}`}>
             {confirmLabel}
           </button>
         </div>

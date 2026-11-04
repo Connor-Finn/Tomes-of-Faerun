@@ -57,6 +57,12 @@ class User(db.Model):
     instances: Mapped[list[CharacterInstance]] = relationship(back_populates="user", cascade="all, delete-orphan")
     published: Mapped[list[PublishedCharacter]] = relationship(back_populates="author", cascade="all, delete-orphan")
     chat_states: Mapped[list[PartyChatState]] = relationship(cascade="all, delete-orphan")
+    sent_friend_requests: Mapped[list[Friendship]] = relationship(
+        foreign_keys="Friendship.requester_id", cascade="all, delete-orphan", overlaps="requester")
+    received_friend_requests: Mapped[list[Friendship]] = relationship(
+        foreign_keys="Friendship.addressee_id", cascade="all, delete-orphan", overlaps="addressee")
+    join_requests: Mapped[list[JoinRequest]] = relationship(
+        foreign_keys="JoinRequest.user_id", cascade="all, delete-orphan", overlaps="user")
 
     @property
     def is_admin(self) -> bool:
@@ -309,6 +315,8 @@ class Party(db.Model):
     messages: Mapped[list[PartyMessage]] = relationship(
         back_populates="party", cascade="all, delete-orphan", order_by="PartyMessage.id")
     chat_states: Mapped[list[PartyChatState]] = relationship(cascade="all, delete-orphan")
+    join_requests: Mapped[list[JoinRequest]] = relationship(
+        back_populates="party", cascade="all, delete-orphan", order_by="JoinRequest.id")
 
 
 class PartyMember(db.Model):
@@ -403,3 +411,43 @@ class PartyChatState(db.Model):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     last_read_id: Mapped[int] = mapped_column(default=0)
     writing_at: Mapped[datetime | None]
+
+
+class Friendship(db.Model):
+    """A friend request, or (once accepted) a friendship. One row per pair of people, whoever asked."""
+    __tablename__ = "friendships"
+    __table_args__ = (UniqueConstraint("requester_id", "addressee_id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    requester_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    addressee_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    status: Mapped[str] = mapped_column(String(10), default="pending")  # pending | accepted
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
+    accepted_at: Mapped[datetime | None]
+
+    requester: Mapped[User] = relationship(foreign_keys=[requester_id])
+    addressee: Mapped[User] = relationship(foreign_keys=[addressee_id])
+
+    def other(self, user: User) -> User:
+        return self.addressee if self.requester_id == user.id else self.requester
+
+
+class JoinRequest(db.Model):
+    """Someone asking to join a party, waiting for the party's DM to say yes or no.
+
+    Either the player asked themselves (a public party), or a party member suggested a friend
+    (`suggested_by`), which works for private parties too. The DM always decides.
+    """
+    __tablename__ = "join_requests"
+    __table_args__ = (UniqueConstraint("party_id", "user_id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    party_id: Mapped[int] = mapped_column(ForeignKey("parties.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    suggested_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    message: Mapped[str] = mapped_column(String(300), default="")
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
+
+    party: Mapped[Party] = relationship(back_populates="join_requests")
+    user: Mapped[User] = relationship(foreign_keys=[user_id])
+    suggested_by: Mapped[User | None] = relationship(foreign_keys=[suggested_by_id])

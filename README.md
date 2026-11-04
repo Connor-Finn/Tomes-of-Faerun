@@ -28,7 +28,7 @@ that run on every push.
 | Parties: DMs invite players by email, players accept or decline | ✅ Done |
 | Characters in campaigns: each player brings a copy (an instance) that levels up and tracks hit points; the DM reads it and leaves notes | ✅ Done |
 | Party chat on enchanted parchment: words ink in, struck-out messages fade, "is writing…", unread counts | ✅ Done |
-| Friend requests, people search, public parties and join requests | 🛠 Planned |
+| Friends and people search, a notice board of public parties, join requests the DM answers, and suggesting friends to your party | ✅ Done |
 | Solo text adventure             | 🛠 Planned   |
 
 ## Tech stack
@@ -122,7 +122,7 @@ When a test fails, a screenshot and trace are saved in `test-results/`, and CI u
   directly, and a helper finishes builds for every class at levels 1 and 20 to prove each can be completed
 - **API tests** with Playwright's `APIRequestContext`, including security checks (CSRF header, open redirects,
   no password hashes in responses)
-- **Multiple browser contexts** in one test (an admin bans a user who then can't log in)
+- **Multiple browser contexts** in one test (an admin bans a user who then can't log in; a player suggests a friend, the DM approves and the friend accepts: three browsers at once)
 
 ## Rules data
 

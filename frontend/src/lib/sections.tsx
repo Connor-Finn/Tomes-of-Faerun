@@ -67,8 +67,20 @@ export const SECTIONS: SectionDef[] = [
         plans: [
           "Accept or decline invitations from Dungeon Masters.",
           "Chat with your party on enchanted parchment.",
-          "Later: find public parties to join, and send friend requests.",
+          "Suggest your friends to the party's Dungeon Master.",
         ],
+      },
+      {
+        slug: "find",
+        title: "Find a party",
+        summary: "Public parties looking for players. Ask to join and the Dungeon Master decides.",
+        plans: ["Search the public parties and ask to join, with a note for the Dungeon Master."],
+      },
+      {
+        slug: "friends",
+        title: "Friends",
+        summary: "Find other adventurers, send friend requests, and keep your friends close.",
+        plans: ["Search for adventurers by name and send friend requests.", "Accept or decline requests sent to you."],
       },
     ],
   },
@@ -153,7 +165,7 @@ export const SECTIONS: SectionDef[] = [
           "Create public or private parties and invite players.",
           "Attach a party to one or more campaigns.",
           "Chat with your party on enchanted parchment.",
-          "Later: decide whether players may invite their friends.",
+          "Invite your friends without typing their email.",
         ],
       },
       {
@@ -161,8 +173,8 @@ export const SECTIONS: SectionDef[] = [
         title: "Join requests",
         summary: "Adventurers asking to join one of your parties.",
         plans: [
-          "Coming with the online features: players will find public parties and ask to join.",
-          "Accept or decline each request, and get notified when a new one arrives.",
+          "Players find your public parties and ask to join; your players suggest their friends.",
+          "Accept or decline each request, and get an email when a new one arrives.",
         ],
       },
     ],

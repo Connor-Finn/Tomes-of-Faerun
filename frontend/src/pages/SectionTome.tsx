@@ -13,6 +13,8 @@ import { Items } from "./items/Items";
 import { Spells } from "./spells/Spells";
 import { DmCampaigns, PlayerCampaigns } from "./campaigns/CampaignLists";
 import { DmParties, PlayerParties } from "./campaigns/Parties";
+import { Friends } from "./campaigns/Friends";
+import { FindParty, JoinRequests } from "./campaigns/Joining";
 
 /**
  * Pages that are built, by "section key/page slug". Every other page shows its plans.
@@ -29,8 +31,11 @@ const BUILT_PAGES: Record<string, ComponentType> = {
   "browse-tomes/items": Items,
   "player-campaigns/current": PlayerCampaigns,
   "player-campaigns/parties": PlayerParties,
+  "player-campaigns/find": FindParty,
+  "player-campaigns/friends": Friends,
   "dm-campaigns/campaigns": DmCampaigns,
   "dm-campaigns/parties": DmParties,
+  "dm-campaigns/requests": JoinRequests,
 };
 
 /** One section of the app (e.g. Character Manager), shown as a tome. */

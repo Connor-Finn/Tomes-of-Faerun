@@ -17,6 +17,8 @@ import {
 import { useAuth } from "../../lib/auth";
 import { useFlash } from "../../lib/flash";
 import { ConfirmDialog } from "../bestiary/ConfirmDialog";
+import { FIND_PARTY_PATH, FRIENDS_PATH, JOIN_REQUESTS_PATH } from "../../lib/friends";
+import { RequestCard } from "./Joining";
 import { PartyChat } from "./PartyChat";
 
 interface PartyLists {
@@ -121,7 +123,10 @@ function DmPartyList() {
           {errors.name}
         </p>
       )}
-      <p className="hint">Public parties will show up in the party search when the online features arrive.</p>
+      <p className="hint">
+        Public parties show up in the players' party search, where anyone can ask to join. You answer their{" "}
+        <Link to={JOIN_REQUESTS_PATH}>join requests</Link>.
+      </p>
 
       {error && (
         <p className="form-error-summary" role="alert">
@@ -142,6 +147,11 @@ function DmPartyList() {
                   {p.name}
                 </Link>
                 <UnreadPill count={p.unread} />
+                {!!p.request_count && (
+                  <Link to={JOIN_REQUESTS_PATH} className="pill unread-pill" data-testid="request-count">
+                    {plural(p.request_count, "join request")}
+                  </Link>
+                )}
               </div>
               <p className="muted small" data-testid="party-facts">
                 {VISIBILITY_LABEL[p.visibility]} · {plural(p.member_count, "player")}
@@ -165,6 +175,8 @@ function DmPartyPage({ id }: { id: number }) {
   const [missing, setMissing] = useState(false);
   const [email, setEmail] = useState("");
   const [inviteError, setInviteError] = useState<string | null>(null);
+  const [friendId, setFriendId] = useState("");
+  const [friendError, setFriendError] = useState<string | null>(null);
   const [removing, setRemoving] = useState<PartyMember | null>(null);
   const [disbanding, setDisbanding] = useState(false);
 
@@ -205,6 +217,27 @@ function DmPartyPage({ id }: { id: number }) {
     flash("success", res.data.message);
   }
 
+  async function inviteFriend(e: FormEvent) {
+    e.preventDefault();
+    if (!friendId) {
+      setFriendError("Choose a friend to invite.");
+      return;
+    }
+    const res = await api.post<{ party: Party; message: string }>(`/api/parties/${id}/invites`, { user_id: Number(friendId) });
+    if (!res.ok) {
+      setFriendError(res.data.errors?.user_id ?? res.data.error ?? "The invitation wasn't sent.");
+      return;
+    }
+    setParty(res.data.party);
+    setFriendId("");
+    flash("success", res.data.message);
+  }
+
+  async function reload() {
+    const res = await api.get<{ party: Party }>(`/api/parties/${id}`);
+    if (res.ok) setParty(res.data.party);
+  }
+
   async function setVisibility(visibility: "private" | "public") {
     const res = await api.patch<{ party: Party }>(`/api/parties/${id}`, { visibility });
     if (res.ok) setParty(res.data.party);
@@ -236,6 +269,22 @@ function DmPartyPage({ id }: { id: number }) {
       </fieldset>
 
       <PartyChat partyId={id} />
+
+      {party.requests && party.requests.length > 0 && (
+        <>
+          <h3 className="leaf-heading">Asking to join</h3>
+          <ul className="person-list" data-testid="party-requests">
+            {party.requests.map((r) => (
+              <RequestCard
+                key={r.id}
+                request={r}
+                showParty={false}
+                onAnswered={(updated) => (updated ? setParty(updated) : void reload())}
+              />
+            ))}
+          </ul>
+        </>
+      )}
 
       <h3 className="leaf-heading">Players</h3>
       {members.length === 0 ? (
@@ -303,6 +352,41 @@ function DmPartyPage({ id }: { id: number }) {
       {inviteError && (
         <p className="field-error" id="invite-error" data-testid="error-email">
           {inviteError}
+        </p>
+      )}
+      {party.friends.length > 0 ? (
+        <form className="row wrap inline-form invite-form" onSubmit={inviteFriend} aria-label="Invite a friend">
+          <div className="field grow">
+            <label htmlFor="invite-friend">Or invite one of your friends</label>
+            <select
+              id="invite-friend"
+              value={friendId}
+              aria-invalid={friendError ? true : undefined}
+              onChange={(e) => {
+                setFriendId(e.target.value);
+                setFriendError(null);
+              }}
+            >
+              <option value="">Choose a friend…</option>
+              {party.friends.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <button type="submit" className="btn primary small">
+            Invite friend
+          </button>
+        </form>
+      ) : (
+        <p className="hint" data-testid="no-friends-to-invite">
+          Add <Link to={FRIENDS_PATH}>friends</Link> to invite them without typing their email.
+        </p>
+      )}
+      {friendError && (
+        <p className="field-error" data-testid="error-friend">
+          {friendError}
         </p>
       )}
 
@@ -435,7 +519,8 @@ function PlayerPartyList() {
       <h3 className="leaf-heading">Your parties</h3>
       {lists?.joined.length === 0 && (
         <p className="muted" data-testid="no-parties">
-          You aren't in a party yet. Ask your Dungeon Master to invite you by the email you signed up with.
+          You aren't in a party yet. <Link to={FIND_PARTY_PATH}>Find a public party</Link> to ask to join, or ask your
+          Dungeon Master to invite you.
         </p>
       )}
       {lists && lists.joined.length > 0 && (
@@ -509,6 +594,8 @@ function PlayerPartyPage({ id }: { id: number }) {
   const [party, setParty] = useState<Party | null>(null);
   const [missing, setMissing] = useState(false);
   const [leaving, setLeaving] = useState(false);
+  const [friendId, setFriendId] = useState("");
+  const [suggestError, setSuggestError] = useState<string | null>(null);
 
   useEffect(() => {
     void api.get<{ party: Party }>(`/api/parties/${id}`).then((res) => {
@@ -537,6 +624,34 @@ function PlayerPartyPage({ id }: { id: number }) {
   }
   if (!party) return <p className="muted">Calling the roll…</p>;
   const members = party.members.filter((m) => m.status === "member");
+
+  async function refresh() {
+    const res = await api.get<{ party: Party }>(`/api/parties/${id}`);
+    if (res.ok) setParty(res.data.party);
+  }
+
+  async function suggest(e: FormEvent) {
+    e.preventDefault();
+    if (!friendId) {
+      setSuggestError("Choose a friend to suggest.");
+      return;
+    }
+    const res = await api.post<{ message: string }>(`/api/parties/${id}/requests`, { user_id: Number(friendId) });
+    if (!res.ok) {
+      setSuggestError(res.data.errors?.user_id ?? res.data.error ?? "Your suggestion wasn't sent.");
+      return;
+    }
+    setFriendId("");
+    flash("success", res.data.message);
+    void refresh();
+  }
+
+  async function withdraw(requestId: number) {
+    const res = await api.delete<{ message: string }>(`/api/parties/${id}/requests/${requestId}`);
+    if (res.ok) flash("info", res.data.message);
+    else flash("error", res.data.error ?? "That didn't work.");
+    void refresh();
+  }
 
   return (
     <section aria-labelledby="page-title" data-testid="party" className="party-page">
@@ -570,9 +685,62 @@ function PlayerPartyPage({ id }: { id: number }) {
           ))}
         </ul>
       )}
-      <button type="button" className="btn ghost small" onClick={() => setLeaving(true)}>
-        Leave party
-      </button>
+      <h3 className="leaf-heading">Bring a friend</h3>
+      <p className="muted small">Suggest a friend to {party.dm.name}. If they say yes, your friend gets an invitation.</p>
+      {party.friends.length > 0 ? (
+        <form className="row wrap inline-form" onSubmit={suggest} aria-label="Suggest a friend">
+          <div className="field grow">
+            <label htmlFor="suggest-friend">Friend to suggest</label>
+            <select
+              id="suggest-friend"
+              value={friendId}
+              aria-invalid={suggestError ? true : undefined}
+              onChange={(e) => {
+                setFriendId(e.target.value);
+                setSuggestError(null);
+              }}
+            >
+              <option value="">Choose a friend…</option>
+              {party.friends.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <button type="submit" className="btn primary small">
+            Suggest
+          </button>
+        </form>
+      ) : (
+        <p className="hint" data-testid="no-friends-to-suggest">
+          None of your <Link to={FRIENDS_PATH}>friends</Link> are free to suggest.
+        </p>
+      )}
+      {suggestError && (
+        <p className="field-error" data-testid="error-suggest">
+          {suggestError}
+        </p>
+      )}
+      {party.suggestions && party.suggestions.length > 0 && (
+        <ul className="person-list" aria-label="Your suggestions" data-testid="suggestions">
+          {party.suggestions.map((r) => (
+            <li key={r.id} className="person" data-testid="suggestion">
+              <span className="member-name">{r.person.name}</span>
+              <span className="pill">Waiting for {party.dm.name}</span>
+              <button type="button" className="btn ghost small" aria-label={`Withdraw your suggestion of ${r.person.name}`} onClick={() => withdraw(r.id)}>
+                Withdraw
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <p>
+        <button type="button" className="btn ghost small" onClick={() => setLeaving(true)}>
+          Leave party
+        </button>
+      </p>
 
       {leaving && me !== null && (
         <ConfirmDialog

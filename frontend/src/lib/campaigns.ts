@@ -107,6 +107,8 @@ export interface PartySummary {
   invited_at?: string;
   /** Party lists only: chat messages others wrote that you haven't read. */
   unread?: number;
+  /** The DM's party list only: join requests waiting for an answer. */
+  request_count?: number;
 }
 
 export interface PartyMember extends Person {
@@ -119,6 +121,12 @@ export interface PartyMember extends Person {
 export interface Party extends PartySummary {
   role: "dm" | "player";
   members: PartyMember[];
+  /** Your friends who aren't in the party yet: the DM can invite them, a member can suggest them. */
+  friends: Person[];
+  /** DM only: join requests waiting for an answer. */
+  requests?: import("./friends").JoinRequest[];
+  /** Players only: friends you suggested that the DM hasn't answered yet. */
+  suggestions?: import("./friends").JoinRequest[];
 }
 
 export const DM_CAMPAIGNS_PATH = "/dm/campaigns/campaigns";
