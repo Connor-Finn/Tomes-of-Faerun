@@ -14,16 +14,16 @@ const SHELF_TITLES: Record<Mode, string> = {
 };
 
 /** The hub: pick a mode, then take a tome off the shelf. */
-export function Tavern() {
+export function GuildHall() {
   const { user } = useAuth();
   const { mode, setMode } = useMode();
   if (!user) return null;
 
   return (
-    <div className="tavern">
-      <header className="tavern-header">
+    <div className="guild-hall">
+      <header className="guild-hall-header">
         <p className="eyebrow">Pull up a chair, {user.name}</p>
-        <h1>The Tavern</h1>
+        <h1>The Guild Hall</h1>
         <p className="lead">Choose how you're playing tonight, then take a tome from the shelf.</p>
       </header>
 

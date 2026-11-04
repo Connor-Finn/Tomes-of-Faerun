@@ -4,7 +4,7 @@ import { Layout } from "./components/Layout";
 import { AdminUsers } from "./pages/AdminUsers";
 import { Home } from "./pages/Home";
 import { SectionTome } from "./pages/SectionTome";
-import { Tavern } from "./pages/Tavern";
+import { GuildHall } from "./pages/GuildHall";
 import { Mailbox, NotFound } from "./pages/Mailbox";
 import { Profile } from "./pages/account/Profile";
 import { Security } from "./pages/account/Security";
@@ -30,9 +30,9 @@ export function App() {
         <Route path="account/security" element={<RequireAuth><Security /></RequireAuth>} />
         <Route path="admin/users" element={<RequireAdmin><AdminUsers /></RequireAdmin>} />
 
-        {/* The tavern hub and one tome per section (generated from lib/sections) */}
-        <Route path="tavern" element={<RequireAuth><Tavern /></RequireAuth>} />
-        <Route path="dashboard" element={<Navigate to="/tavern" replace />} />
+        {/* The guild hall hub and one tome per section (generated from lib/sections) */}
+        <Route path="guild-hall" element={<RequireAuth><GuildHall /></RequireAuth>} />
+        <Route path="dashboard" element={<Navigate to="/guild-hall" replace />} />
         {SECTIONS.map((s) => (
           <Route
             key={s.key}

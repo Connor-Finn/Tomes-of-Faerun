@@ -3,7 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 /**
  * Player Mode or Dungeon Master Mode.
  *
- * The mode decides which tomes the tavern shelf shows. It is a viewing preference, not a permission:
+ * The mode decides which tomes the guild hall shelf shows. It is a viewing preference, not a permission:
  * anyone can run a campaign as a DM and play in someone else's as a player. It is remembered per
  * browser, and opening any section page (e.g. a deep link to /dm/tomes) switches to that section's mode.
  */

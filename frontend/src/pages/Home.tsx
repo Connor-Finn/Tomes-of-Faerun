@@ -15,8 +15,8 @@ export function Home() {
         </p>
         <div className="hero-actions">
           {user ? (
-            <Link to="/tavern" className="btn primary">
-              Enter the tavern
+            <Link to="/guild-hall" className="btn primary">
+              Enter the guild hall
             </Link>
           ) : (
             <>

@@ -19,8 +19,8 @@ export function SectionTome({ section }: { section: SectionDef }) {
     <>
       <Breadcrumbs
         trail={[
-          { label: "Tavern", to: "/tavern" },
-          { label: modeLabel, to: "/tavern" },
+          { label: "Guild Hall", to: "/guild-hall" },
+          { label: modeLabel, to: "/guild-hall" },
           { label: section.title },
         ]}
       />
@@ -68,8 +68,8 @@ function SealedPage() {
         This tome is still sealed
       </h2>
       <p className="muted">Its pages haven't been written yet. Check back after a few more adventures.</p>
-      <Link to="/tavern" className="btn ghost small">
-        Back to the tavern
+      <Link to="/guild-hall" className="btn ghost small">
+        Back to the guild hall
       </Link>
     </section>
   );

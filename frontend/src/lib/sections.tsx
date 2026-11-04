@@ -10,7 +10,7 @@ import {
 import type { Mode } from "./mode";
 
 /**
- * The app's map: every tome on the tavern shelf, by mode.
+ * The app's map: every tome on the guild hall shelf, by mode.
  *
  * The hub, the routes and the tables of contents are all generated from this list, so adding a
  * section or a page is a one-line change here. Pages that aren't built yet show their `plans`

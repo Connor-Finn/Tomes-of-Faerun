@@ -15,7 +15,7 @@ that run on every push.
 |---------------------------------|--------------|
 | Accounts (sign-up, email verification, login, lockout, password reset, profile, avatar, admin) | ✅ Done |
 | Rules data API (SRD spells, monsters, classes, races, equipment, magic items) | ✅ Done |
-| Tavern hub, Player / Dungeon Master modes, tome layout | ✅ Done |
+| Guild Hall hub, Player / Dungeon Master modes, tome layout | ✅ Done |
 | Character builder and sheets    | 🛠 Planned   |
 | Bestiary                        | 🛠 Planned   |
 | Spell catalogue and spellbooks  | 🛠 Planned   |
@@ -39,7 +39,7 @@ tests/       Playwright tests and page objects
 
 ## How the app is laid out
 
-After logging in you arrive at **the Tavern**. Pick **Player Mode** or **Dungeon Master Mode**, then take a tome
+After logging in you arrive at **the Guild Hall**. Pick **Player Mode** or **Dungeon Master Mode**, then take a tome
 off the shelf. Each section is a tome: a table of contents on the left page and the open chapter on the right.
 
 | Mode | Tomes |

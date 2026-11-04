@@ -5,6 +5,6 @@ changes you fix ONE class instead of fifty tests.
 """
 from .login_page import LoginPage
 from .signup_page import SignupPage
-from .tavern_page import TavernPage, TomePage
+from .guild_hall_page import GuildHallPage, TomePage
 
-__all__ = ["LoginPage", "SignupPage", "TavernPage", "TomePage"]
+__all__ = ["LoginPage", "SignupPage", "GuildHallPage", "TomePage"]

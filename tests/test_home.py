@@ -19,10 +19,10 @@ def test_call_to_action_opens_signup(page: Page):
     expect(page.get_by_role("heading", name="Create your account")).to_be_visible()
 
 
-def test_logged_in_home_links_to_tavern(logged_in_page: Page, user):
+def test_logged_in_home_links_to_guild_hall(logged_in_page: Page, user):
     logged_in_page.get_by_test_id("nav-home").click()
-    logged_in_page.get_by_role("link", name="Enter the tavern").click()
-    expect(logged_in_page.get_by_role("heading", name="The Tavern", level=1)).to_be_visible()
+    logged_in_page.get_by_role("link", name="Enter the guild hall").click()
+    expect(logged_in_page.get_by_role("heading", name="The Guild Hall", level=1)).to_be_visible()
     expect(logged_in_page.get_by_text(f"Pull up a chair, {user['name']}")).to_be_visible()
 
 

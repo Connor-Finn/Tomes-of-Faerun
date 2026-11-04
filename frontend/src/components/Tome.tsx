@@ -89,7 +89,7 @@ export function Tome({ eyebrow, title, subtitle, basePath, pages, current, cover
   );
 }
 
-/** "Tavern › Player Mode › Character Manager" */
+/** "Guild Hall › Player Mode › Character Manager" */
 export function Breadcrumbs({ trail }: { trail: { label: string; to?: string }[] }) {
   return (
     <nav aria-label="Breadcrumb" className="breadcrumbs">

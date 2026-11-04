@@ -1,10 +1,10 @@
-"""The tavern hub, Player / Dungeon Master modes, and the tome layout every section uses."""
+"""The guild hall hub, Player / Dungeon Master modes, and the tome layout every section uses."""
 import re
 
 import pytest
 from playwright.sync_api import Page, expect
 
-from pages import LoginPage, TavernPage, TomePage
+from pages import LoginPage, GuildHallPage, TomePage
 
 PLAYER_TOMES = ["Campaigns", "Character Manager", "Solo Adventure"]
 DM_TOMES = ["Campaigns", "Browse Tomes", "Create Solo Adventure", "Create Homebrew"]
@@ -22,67 +22,67 @@ SEALED_SECTIONS = ["/play/solo-adventure", "/dm/solo-adventures", "/dm/homebrew"
 # ---------------------------------------------------------------------------
 # The hub
 # ---------------------------------------------------------------------------
-def test_login_lands_in_the_tavern_in_player_mode(logged_in_page: Page, user):
-    tavern = TavernPage(logged_in_page)
-    expect(tavern.heading).to_be_visible()
+def test_login_lands_in_the_guild_hall_in_player_mode(logged_in_page: Page, user):
+    hall = GuildHallPage(logged_in_page)
+    expect(hall.heading).to_be_visible()
     expect(logged_in_page.get_by_text(f"Pull up a chair, {user['name']}")).to_be_visible()
-    expect(tavern.player_mode).to_be_checked()
-    expect(tavern.shelf_heading).to_have_text("The adventurer's shelf")
-    expect(tavern.covers.locator(".book-title")).to_have_text(PLAYER_TOMES)
+    expect(hall.player_mode).to_be_checked()
+    expect(hall.shelf_heading).to_have_text("The adventurer's shelf")
+    expect(hall.covers.locator(".book-title")).to_have_text(PLAYER_TOMES)
 
 
 def test_switching_to_dungeon_master_mode_changes_the_shelf(logged_in_page: Page):
-    tavern = TavernPage(logged_in_page).switch_to("dm")
-    expect(tavern.dm_mode).to_be_checked()
-    expect(tavern.shelf_heading).to_have_text("The Dungeon Master's shelf")
-    expect(tavern.covers.locator(".book-title")).to_have_text(DM_TOMES)
+    hall = GuildHallPage(logged_in_page).switch_to("dm")
+    expect(hall.dm_mode).to_be_checked()
+    expect(hall.shelf_heading).to_have_text("The Dungeon Master's shelf")
+    expect(hall.covers.locator(".book-title")).to_have_text(DM_TOMES)
 
-    tavern.switch_to("player")
-    expect(tavern.covers.locator(".book-title")).to_have_text(PLAYER_TOMES)
+    hall.switch_to("player")
+    expect(hall.covers.locator(".book-title")).to_have_text(PLAYER_TOMES)
 
 
 def test_mode_is_remembered_after_a_reload(logged_in_page: Page):
-    tavern = TavernPage(logged_in_page).switch_to("dm")
+    hall = GuildHallPage(logged_in_page).switch_to("dm")
     logged_in_page.reload()
-    expect(tavern.dm_mode).to_be_checked()
-    expect(tavern.tome("Browse Tomes")).to_be_visible()
+    expect(hall.dm_mode).to_be_checked()
+    expect(hall.tome("Browse Tomes")).to_be_visible()
 
 
 def test_mode_switch_works_from_the_keyboard(logged_in_page: Page):
-    tavern = TavernPage(logged_in_page)
-    tavern.player_mode.focus()
+    hall = GuildHallPage(logged_in_page)
+    hall.player_mode.focus()
     logged_in_page.keyboard.press("ArrowRight")
-    expect(tavern.dm_mode).to_be_checked()
-    expect(tavern.tome("Create Homebrew")).to_be_visible()
+    expect(hall.dm_mode).to_be_checked()
+    expect(hall.tome("Create Homebrew")).to_be_visible()
 
 
 def test_sealed_tomes_are_marked_on_the_shelf(logged_in_page: Page):
-    tavern = TavernPage(logged_in_page)
-    expect(tavern.tome("Solo Adventure")).to_contain_text("Sealed")
-    expect(tavern.tome("Character Manager")).not_to_contain_text("Sealed")
+    hall = GuildHallPage(logged_in_page)
+    expect(hall.tome("Solo Adventure")).to_contain_text("Sealed")
+    expect(hall.tome("Character Manager")).not_to_contain_text("Sealed")
 
 
-def test_tavern_needs_an_account(page: Page):
-    page.goto("/tavern")
-    expect(page).to_have_url(re.compile(r"/login\?next=%2Ftavern$"))
+def test_guild_hall_needs_an_account(page: Page):
+    page.goto("/guild-hall")
+    expect(page).to_have_url(re.compile(r"/login\?next=%2Fguild-hall$"))
 
 
-def test_old_dashboard_link_goes_to_the_tavern(logged_in_page: Page):
+def test_old_dashboard_link_goes_to_the_guild_hall(logged_in_page: Page):
     logged_in_page.goto("/dashboard")
-    expect(logged_in_page).to_have_url(re.compile(r"/tavern$"))
+    expect(logged_in_page).to_have_url(re.compile(r"/guild-hall$"))
 
 
-def test_topbar_links_back_to_the_tavern(logged_in_page: Page):
+def test_topbar_links_back_to_the_guild_hall(logged_in_page: Page):
     logged_in_page.goto("/account/profile")
-    logged_in_page.get_by_test_id("nav-tavern").click()
-    expect(TavernPage(logged_in_page).heading).to_be_visible()
+    logged_in_page.get_by_test_id("nav-guild-hall").click()
+    expect(GuildHallPage(logged_in_page).heading).to_be_visible()
 
 
 # ---------------------------------------------------------------------------
 # Tomes
 # ---------------------------------------------------------------------------
 def test_opening_a_tome_shows_its_contents_and_first_page(logged_in_page: Page):
-    tome = TavernPage(logged_in_page).open_tome("Character Manager")
+    tome = GuildHallPage(logged_in_page).open_tome("Character Manager")
     expect(logged_in_page).to_have_url(re.compile(r"/play/characters/my-characters$"))
     expect(tome.title).to_have_text("Character Manager")
     expect(tome.entries).to_have_text(["My characters", "Create a character", "Publish a character"])
@@ -140,9 +140,9 @@ def test_sealed_sections_say_they_are_not_written_yet(logged_in_page: Page, path
 def test_deep_link_switches_to_that_sections_mode(logged_in_page: Page):
     tome = TomePage(logged_in_page).open("/dm/campaigns/requests")
     expect(tome.breadcrumbs).to_contain_text("Dungeon Master Mode")
-    tome.breadcrumbs.get_by_role("link", name="Tavern").click()
-    tavern = TavernPage(logged_in_page)
-    expect(tavern.dm_mode).to_be_checked()
+    tome.breadcrumbs.get_by_role("link", name="Guild Hall").click()
+    hall = GuildHallPage(logged_in_page)
+    expect(hall.dm_mode).to_be_checked()
 
 
 def test_unknown_page_in_a_tome(logged_in_page: Page):
@@ -158,7 +158,7 @@ def test_tomes_need_an_account(page: Page):
     expect(page).to_have_url(re.compile(r"/login\?next=%2Fplay%2Fcharacters%2Fcreate$"))
 
 
-@pytest.mark.parametrize("path", ["/tavern", "/play/characters/create"])
+@pytest.mark.parametrize("path", ["/guild-hall", "/play/characters/create"])
 def test_mobile_layout_has_no_horizontal_scroll(browser, browser_context_args, user, path):
     context = browser.new_context(**{**browser_context_args, "viewport": {"width": 375, "height": 740}})
     page = context.new_page()

@@ -1,24 +1,24 @@
 from playwright.sync_api import Locator, Page
 
 
-class TavernPage:
+class GuildHallPage:
     """The hub: a Player / Dungeon Master mode switch and a shelf of tomes."""
 
-    URL = "/tavern"
+    URL = "/guild-hall"
 
     def __init__(self, page: Page):
         self.page = page
-        self.heading = page.get_by_role("heading", name="The Tavern", level=1)
+        self.heading = page.get_by_role("heading", name="The Guild Hall", level=1)
         self.player_mode = page.get_by_role("radio", name="Player Mode")
         self.dm_mode = page.get_by_role("radio", name="Dungeon Master Mode")
         self.shelf_heading = page.locator("#shelf-heading")
         self.covers = page.get_by_test_id("tome-cover")
 
-    def open(self) -> "TavernPage":
+    def open(self) -> "GuildHallPage":
         self.page.goto(self.URL)
         return self
 
-    def switch_to(self, mode: str) -> "TavernPage":
+    def switch_to(self, mode: str) -> "GuildHallPage":
         """mode is "player" or "dm"."""
         (self.dm_mode if mode == "dm" else self.player_mode).check()
         return self

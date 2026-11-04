@@ -156,7 +156,7 @@ def user_api(playwright: Playwright, base_url: str, user: dict) -> APIRequestCon
 def logged_in_page(page: Page, user: dict) -> Page:
     """A page already logged in as `user` (through the real login form)."""
     LoginPage(page).open().login(user["email"], user["password"])
-    expect(page).to_have_url(re.compile(r"/tavern$"))
+    expect(page).to_have_url(re.compile(r"/guild-hall$"))
     return page
 
 
@@ -170,7 +170,7 @@ def admin_storage_state(browser: Browser, browser_context_args: dict, tmp_path_f
     context = browser.new_context(**browser_context_args)
     page = context.new_page()
     LoginPage(page).open().login("admin@example.com", "Admin123!")
-    expect(page).to_have_url(re.compile(r"/tavern$"))
+    expect(page).to_have_url(re.compile(r"/guild-hall$"))
     path = tmp_path_factory.mktemp("auth") / "admin.json"
     context.storage_state(path=path)
     context.close()

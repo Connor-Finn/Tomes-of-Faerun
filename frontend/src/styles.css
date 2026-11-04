@@ -285,11 +285,11 @@ input[type=file]::file-selector-button {
 .cover-slate { --cover: #2f3438; }
 .cover-ochre { --cover: #74501a; }
 
-/* ---------- The tavern hub ---------- */
-.tavern-header { text-align: center; padding: 1.5rem 1rem 1.25rem; max-width: 760px; margin: 0 auto; }
-.tavern-header h1 { font-size: clamp(2.3rem, 6vw, 3.4rem); color: #f8e9c6; text-shadow: 0 2px 0 rgba(0, 0, 0, 0.5), 0 0 28px rgba(255, 190, 100, 0.35); }
+/* ---------- The guild hall hub ---------- */
+.guild-hall-header { text-align: center; padding: 1.5rem 1rem 1.25rem; max-width: 760px; margin: 0 auto; }
+.guild-hall-header h1 { font-size: clamp(2.3rem, 6vw, 3.4rem); color: #f8e9c6; text-shadow: 0 2px 0 rgba(0, 0, 0, 0.5), 0 0 28px rgba(255, 190, 100, 0.35); }
 
-/* Two hanging tavern signs; the lit one is the current mode */
+/* Two hanging signs; the lit one is the current mode */
 .mode-switch { border: 0; padding: 0; margin: 0 auto 0.5rem; display: flex; justify-content: center; gap: 1rem; flex-wrap: wrap; min-width: 0; }
 .mode-option {
   position: relative; display: grid; gap: 0.1rem; text-align: center; min-width: 230px; padding: 0.8rem 1.4rem;
