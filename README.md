@@ -20,8 +20,8 @@ that run on every push.
 | My characters, character sheets, premade templates, build mode | ✅ Done |
 | Character builder: Standard (free tabs, levels 1 to 20) and Easy (guided tutorial, levels 1 to 3) | ✅ Done |
 | Level roadmaps and publishing characters | 🛠 Planned |
-| Bestiary                        | 🛠 Planned   |
-| Spell catalogue and spellbooks  | 🛠 Planned   |
+| Bestiary: stat blocks, monster collections (minion / elite / boss), environments | ✅ Done |
+| Spell catalogue (search, filters, full rules text), favourite spells, readable character spellbooks | ✅ Done |
 | Items and equipment             | 🛠 Planned   |
 | Campaigns                       | 🛠 Planned   |
 | Parties, sharing and messaging  | 🛠 Planned   |

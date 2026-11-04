@@ -8,14 +8,16 @@ import { MyCharacters } from "./characters/MyCharacters";
 import { Bestiary } from "./bestiary/Bestiary";
 import { Collections } from "./bestiary/Collections";
 import { Environments } from "./bestiary/Environments";
+import { Spells } from "./spells/Spells";
 
 /**
  * Pages that are built, by "section key/page slug". Every other page shows its plans.
- * A built page can also have sub-pages (/dm/tomes/bestiary/goblin): it reads `:sub` itself.
+ * A built page can also have sub-pages (/dm/tomes/bestiary/goblin, /dm/tomes/spells/fireball): it reads `:sub` itself.
  */
 const BUILT_PAGES: Record<string, ComponentType> = {
   "character-manager/my-characters": MyCharacters,
   "character-manager/create": CreateCharacter,
+  "browse-tomes/spells": Spells,
   "browse-tomes/bestiary": Bestiary,
   "browse-tomes/collections": Collections,
   "browse-tomes/environments": Environments,

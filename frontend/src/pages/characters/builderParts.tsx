@@ -1,6 +1,8 @@
 import { useId, useState, type ReactNode } from "react";
 import type { Ability, BuildMode, CharacterOptions, Sheet, Slot, SlotOption } from "../../lib/characters";
 import { signed } from "../../lib/characters";
+import { useFavouriteSpells } from "../../lib/spells";
+import { FavouriteStar, SpellReader } from "../spells/SpellText";
 
 /**
  * The pieces of the character builder. None of them knows a D&D rule: they show the slots the
@@ -158,13 +160,19 @@ export function ChipSlot(props: SlotProps) {
   );
 }
 
-/** A spell choice: the spells picked, then a searchable catalogue to add from. */
+/**
+ * A spell choice: the spells picked, then a searchable catalogue to add from. Each spell can be
+ * read in place, and your favourite spells (starred here or in the spell tome) come first.
+ */
 export function SpellSlot(props: SlotProps) {
   const { slot, selected, mode } = props;
   const { notice, toggle } = usePicker(props);
+  const { isFavourite, toggle: toggleFavourite } = useFavouriteSpells();
   const [query, setQuery] = useState("");
   const [level, setLevel] = useState("");
   const [onlyAllowed, setOnlyAllowed] = useState(false);
+  const [onlyFavourites, setOnlyFavourites] = useState(false);
+  const [reading, setReading] = useState<string | null>(null);
   const searchId = useId();
   const levelId = useId();
 
@@ -172,8 +180,10 @@ export function SpellSlot(props: SlotProps) {
   const levels = [...new Set(slot.options.map((o) => o.level ?? 0))].sort((a, b) => a - b);
   let shown = visibleOptions(slot, selected, mode).filter((o) => !selected.includes(o.value));
   if (onlyAllowed) shown = shown.filter((o) => !o.denied);
+  if (onlyFavourites) shown = shown.filter((o) => isFavourite(o.value));
   if (level !== "") shown = shown.filter((o) => String(o.level ?? 0) === level);
   if (query.trim()) shown = shown.filter((o) => o.label.toLowerCase().includes(query.trim().toLowerCase()));
+  shown = [...shown.filter((o) => isFavourite(o.value)), ...shown.filter((o) => !isFavourite(o.value))];
 
   return (
     <fieldset className="slot spell-slot" data-testid="slot" data-slot={slot.id}>
@@ -215,21 +225,40 @@ export function SpellSlot(props: SlotProps) {
             Only spells I can take
           </label>
         )}
+        <label className="check">
+          <input type="checkbox" checked={onlyFavourites} onChange={(e) => setOnlyFavourites(e.target.checked)} />
+          Only my favourites
+        </label>
       </div>
       <ul className="catalogue" aria-label={`${slot.label} catalogue`} data-testid="catalogue">
         {shown.slice(0, 60).map((o) => (
           <li key={o.value} className={o.denied ? "denied" : mode === "easy" ? "allowed" : undefined} data-testid="catalogue-spell">
+            <FavouriteStar name={o.label} on={isFavourite(o.value)} onToggle={() => void toggleFavourite(o.value)} />
             <span className="spell-name">{o.label}</span>
             <span className="muted small">
               {o.level ? `Level ${o.level}` : "Cantrip"} · {o.school}
             </span>
             {o.denied && <span className="deny-reason small">{o.denied}</span>}
-            <button type="button" className="btn ghost small" onClick={() => toggle(o)}>
-              Add<span className="sr-only"> {o.label}</span>
-            </button>
+            <span className="catalogue-actions">
+              <button
+                type="button"
+                className="btn ghost small"
+                aria-expanded={reading === o.value}
+                onClick={() => setReading((r) => (r === o.value ? null : o.value))}
+              >
+                {reading === o.value ? "Close" : "Read"}
+                <span className="sr-only"> {o.label}</span>
+              </button>
+              <button type="button" className="btn ghost small" onClick={() => toggle(o)}>
+                Add<span className="sr-only"> {o.label}</span>
+              </button>
+            </span>
+            {reading === o.value && <SpellReader index={o.value} />}
           </li>
         ))}
-        {shown.length === 0 && <li className="muted">No spells match.</li>}
+        {shown.length === 0 && (
+          <li className="muted">{onlyFavourites ? "None of your favourites fit here. Star spells with ☆ to keep them handy." : "No spells match."}</li>
+        )}
         {shown.length > 60 && <li className="muted small">…and {shown.length - 60} more. Search to narrow the list.</li>}
       </ul>
     </fieldset>
