@@ -14,6 +14,7 @@ that run on every push.
 | Feature                         | Status       |
 |---------------------------------|--------------|
 | Accounts (sign-up, email verification, login, lockout, password reset, profile, avatar, admin) | ✅ Done |
+| Rules data API (SRD spells, monsters, classes, races, equipment, magic items) | ✅ Done |
 | Character builder and sheets    | 🛠 Planned   |
 | Bestiary                        | 🛠 Planned   |
 | Spell catalogue and spellbooks  | 🛠 Planned   |
@@ -30,7 +31,7 @@ that run on every push.
 - **CI:** GitHub Actions builds the app and runs the whole suite on every push and pull request
 
 ```
-backend/     Flask API (one blueprint per area: auth, account, admin, dev tools)
+backend/     Flask API (one blueprint per area: auth, account, admin, rules, dev tools)
 frontend/    React app (pages, components, API client)
 tests/       Playwright tests and page objects
 ```
@@ -99,6 +100,22 @@ When a test fails, a screenshot and trace are saved in `test-results/`, and CI u
   no password hashes in responses)
 - **Multiple browser contexts** in one test (an admin bans a user who then can't log in)
 
+## Rules data
+
+The SRD content ships with the app in `backend/tof/rules/data/` (the same data the free
+[D&D 5e API](https://www.dnd5eapi.co) serves), so the app works offline and tests are deterministic.
+Refresh it with `python backend/scripts/sync_rules.py`.
+
+| Endpoint | What it does |
+|----------|--------------|
+| `GET /api/rules` | Every category with its entry count |
+| `GET /api/rules/<category>?q=&page=&per_page=` | Search and page through a category (`spells`, `monsters`, `classes`, `races`, `equipment`, `magic-items`, …) |
+| `GET /api/rules/<category>/<index>` | One full entry, e.g. `/api/rules/spells/fireball` |
+
+Catalogue filters: spells take `level`, `school`, `class`, `ritual`, `concentration` and `sort=level`. Monsters take
+`type`, `size`, `cr_min`, `cr_max` and `sort=cr`. Equipment takes `category`. Magic items take `rarity`, `category` and
+`include_variants`. Add `facets=1` to get the filter options, and `order=desc` to reverse the sort.
+
 ## Security notes
 
 The API uses cookie sessions. State-changing requests must send an `X-Requested-With` header, which other websites
@@ -111,5 +128,6 @@ in any deployed environment.
 ## Legal
 
 Tomes of Faerun is unofficial fan content. It is not affiliated with or endorsed by Wizards of the Coast.
-Rules content is from the System Reference Document 5.1, licensed under
-[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
+Rules content is from the System Reference Document 5.1 by Wizards of the Coast LLC, licensed under
+[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). The data files come from
+[5e-bits/5e-database](https://github.com/5e-bits/5e-database) (MIT License).
