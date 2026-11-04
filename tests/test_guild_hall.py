@@ -116,10 +116,10 @@ def test_turning_pages_forwards_and_back(logged_in_page: Page):
 
 
 def test_unbuilt_pages_show_what_is_planned(logged_in_page: Page):
-    TomePage(logged_in_page).open("/dm/campaigns/parties")
+    TomePage(logged_in_page).open("/dm/campaigns/requests")
     draft = logged_in_page.get_by_test_id("draft-page")
     expect(draft.get_by_text("Being written")).to_be_visible()
-    expect(draft.get_by_role("listitem").filter(has_text="invite players")).to_be_visible()
+    expect(draft.get_by_role("listitem").filter(has_text="ask to join")).to_be_visible()
 
 
 @pytest.mark.parametrize("path,title,first_chapter", OPEN_SECTIONS)

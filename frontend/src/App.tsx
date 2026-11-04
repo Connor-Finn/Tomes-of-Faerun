@@ -14,6 +14,7 @@ import { Signup } from "./pages/auth/Signup";
 import { SECTIONS } from "./lib/sections";
 import { Builder } from "./pages/characters/Builder";
 import { CharacterTome } from "./pages/characters/CharacterTome";
+import { CampaignTome } from "./pages/campaigns/CampaignTome";
 
 export function App() {
   return (
@@ -46,6 +47,12 @@ export function App() {
         <Route path="play/characters/new" element={<RequireAuth><Builder /></RequireAuth>} />
         <Route path="play/characters/c/:id/edit" element={<RequireAuth><Builder /></RequireAuth>} />
         <Route path="play/characters/c/:id/:page?" element={<RequireAuth><CharacterTome /></RequireAuth>} />
+
+        {/* Each campaign is its own tome, with a DM edition and a player edition */}
+        <Route path="dm/campaigns/c/:id/:page?" element={<RequireAuth><CampaignTome mode="dm" /></RequireAuth>} />
+        <Route path="dm/campaigns/c/:id/:page/:sub" element={<RequireAuth><CampaignTome mode="dm" /></RequireAuth>} />
+        <Route path="play/campaigns/c/:id/:page?" element={<RequireAuth><CampaignTome mode="player" /></RequireAuth>} />
+        <Route path="play/campaigns/c/:campaignId/character/edit" element={<RequireAuth><Builder /></RequireAuth>} />
 
         {/* Developer tools */}
         <Route path="mailbox" element={<Mailbox />} />

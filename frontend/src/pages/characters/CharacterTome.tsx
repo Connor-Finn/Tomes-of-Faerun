@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState, type FormEvent } from "react";
+import { Fragment, createContext, useContext, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { Breadcrumbs, Tome } from "../../components/Tome";
 import { api } from "../../lib/api";
@@ -19,6 +19,7 @@ import { MODE_LABELS, useEnterMode } from "../../lib/mode";
 import { useFavouriteItems } from "../../lib/items";
 import { useFavouriteSpells } from "../../lib/spells";
 import { ItemReader } from "../items/ItemText";
+import { CharacterCampaignsPage } from "../campaigns/CharacterCampaigns";
 import { FavouriteStar, SpellReader } from "../spells/SpellText";
 
 /** Every character opens as its own tome. */
@@ -78,21 +79,12 @@ export function CharacterTome() {
         aside={<CharacterControls detail={detail} onChange={replace} />}
       >
         {!page && <MissingCharacterPage id={character.id} />}
-        {page?.slug === "sheet" && <SheetPage detail={detail} />}
-        {page?.slug === "spellbook" && <SpellbookPage sheet={sheet} characterId={detail.character.id} />}
-        {page?.slug === "inventory" && <InventoryPage sheet={sheet} characterId={detail.character.id} />}
+        {page?.slug === "sheet" && <SheetPage sheet={sheet} notice={<DraftNotice detail={detail} />} />}
+        {page?.slug === "spellbook" && <SpellbookPage sheet={sheet} editPath={`/play/characters/c/${character.id}/edit`} />}
+        {page?.slug === "inventory" && <InventoryPage sheet={sheet} editPath={`/play/characters/c/${character.id}/edit`} />}
         {page?.slug === "features" && <FeaturesPage sheet={sheet} />}
         {page?.slug === "notes" && <NotesPage detail={detail} onSaved={replace} />}
-        {page?.slug === "campaigns" && (
-          <PlannedPage
-            title="Campaigns"
-            summary="The campaigns this character is playing in."
-            plans={[
-              "Each campaign keeps its own copy of the character (an instance) with its level, hit points, items and spells.",
-              "This page lists those instances. The character here never changes.",
-            ]}
-          />
-        )}
+        {page?.slug === "campaigns" && <CharacterCampaignsPage characterId={character.id} name={character.name} />}
         {page?.slug === "roadmaps" && (
           <PlannedPage
             title="Roadmaps"
@@ -213,7 +205,11 @@ function DeleteCharacterDialog({ id, name, onClose }: { id: number; name: string
 }
 
 // ---------------------------------------------------------------- pages
-function PageHeading({ title, summary }: { title: string; summary?: string }) {
+/** Turned off where these pages are shown inside another page (a character in a campaign has its own heading). */
+export const ShowPageHeading = createContext(true);
+
+export function PageHeading({ title, summary }: { title: string; summary?: string }) {
+  if (!useContext(ShowPageHeading)) return null;
   return (
     <>
       <h2 id="page-title" className="page-title">
@@ -246,8 +242,8 @@ function DraftNotice({ detail }: { detail: CharacterDetail }) {
   );
 }
 
-function SheetPage({ detail }: { detail: CharacterDetail }) {
-  const { sheet } = detail;
+/** The core sheet. `notice` sits under the heading (a draft warning, or a campaign's hit point tracker). */
+export function SheetPage({ sheet, notice }: { sheet: Sheet; notice?: ReactNode }) {
   const s = sheet.summary;
   const stats = [
     { label: "Armour class", value: sheet.armor_class, note: sheet.armor_class_note, id: "ac" },
@@ -260,7 +256,7 @@ function SheetPage({ detail }: { detail: CharacterDetail }) {
   return (
     <section aria-labelledby="page-title" className="sheet" data-testid="character-sheet">
       <PageHeading title="Character sheet" />
-      <DraftNotice detail={detail} />
+      {notice}
       <dl className="sheet-identity">
         {[
           ["Race", s.subrace ?? s.race],
@@ -378,7 +374,8 @@ function SheetPage({ detail }: { detail: CharacterDetail }) {
 
 const ORDINAL = ["Cantrips", "1st level", "2nd level", "3rd level", "4th level", "5th level", "6th level", "7th level", "8th level", "9th level"];
 
-function SpellbookPage({ sheet, characterId }: { sheet: Sheet; characterId: number }) {
+/** `editPath` is the builder to change spells in; leave it out for a read-only spellbook. */
+export function SpellbookPage({ sheet, editPath }: { sheet: Sheet; editPath?: string }) {
   const sc = sheet.spellcasting;
   const [reading, setReading] = useState<string | null>(null);
   const { isFavourite, toggle } = useFavouriteSpells();
@@ -398,9 +395,11 @@ function SpellbookPage({ sheet, characterId }: { sheet: Sheet; characterId: numb
       <PageHeading title="Spellbook" />
       <div className="row between wrap">
         <p className="muted small">Open a spell to read it. Stars mark your favourite spells.</p>
-        <Link to={`/play/characters/c/${characterId}/edit?section=spells`} className="btn ghost small">
-          Change spells
-        </Link>
+        {editPath && (
+          <Link to={`${editPath}?section=spells`} className="btn ghost small">
+            Change spells
+          </Link>
+        )}
       </div>
       <ul className="stat-row" aria-label="Spellcasting">
         <li className="stat">
@@ -461,7 +460,7 @@ function SpellbookPage({ sheet, characterId }: { sheet: Sheet; characterId: numb
   );
 }
 
-function InventoryPage({ sheet, characterId }: { sheet: Sheet; characterId: number }) {
+export function InventoryPage({ sheet, editPath }: { sheet: Sheet; editPath?: string }) {
   const weight = sheet.inventory.reduce((sum, i) => sum + (i.weight ?? 0) * i.quantity, 0);
   const [reading, setReading] = useState<string | null>(null);
   const { isFavourite, toggle } = useFavouriteItems();
@@ -472,9 +471,11 @@ function InventoryPage({ sheet, characterId }: { sheet: Sheet; characterId: numb
         <p>
           <strong>Gold:</strong> <span data-testid="gold">{sheet.gold} gp</span> · <strong>Carrying:</strong> {weight} lb
         </p>
-        <Link to={`/play/characters/c/${characterId}/edit?section=equipment`} className="btn ghost small">
-          Change items
-        </Link>
+        {editPath && (
+          <Link to={`${editPath}?section=equipment`} className="btn ghost small">
+            Change items
+          </Link>
+        )}
       </div>
       {sheet.inventory.length === 0 ? (
         <p className="muted">Nothing but the clothes on their back.</p>
@@ -553,7 +554,7 @@ const SOURCE_LABELS: Record<string, string> = {
   feat: "Feats",
 };
 
-function FeaturesPage({ sheet }: { sheet: Sheet }) {
+export function FeaturesPage({ sheet }: { sheet: Sheet }) {
   const groups = Object.keys(SOURCE_LABELS).filter((g) => sheet.features.some((f) => f.source === g));
   return (
     <section aria-labelledby="page-title" data-testid="features">

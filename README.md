@@ -23,8 +23,10 @@ that run on every push.
 | Bestiary: stat blocks, monster collections (minion / elite / boss), environments | ✅ Done |
 | Spell catalogue (search, filters, full rules text), favourite spells, readable character spellbooks | ✅ Done |
 | Items catalogue (equipment and magic items, search, filters, full descriptions), favourite items, adding items to characters | ✅ Done |
-| Campaigns                       | 🛠 Planned   |
-| Parties, sharing and messaging  | 🛠 Planned   |
+| Campaigns: overview, session log, encounters from your bestiary, private DM notes | ✅ Done |
+| Parties: DMs invite players by email, players accept or decline | ✅ Done |
+| Characters in campaigns: each player brings a copy (an instance) that levels up and tracks hit points; the DM reads it and leaves notes | ✅ Done |
+| Party chat, friend requests, public parties and sharing characters | 🛠 Planned |
 | Solo text adventure             | 🛠 Planned   |
 
 ## Tech stack
