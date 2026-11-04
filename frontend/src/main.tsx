@@ -11,6 +11,7 @@ import "@fontsource/eb-garamond/400-italic.css";
 import { App } from "./App";
 import { AuthProvider } from "./lib/auth";
 import { FlashProvider } from "./lib/flash";
+import { ModeProvider } from "./lib/mode";
 import "./styles.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
@@ -18,7 +19,9 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     <BrowserRouter>
       <AuthProvider>
         <FlashProvider>
-          <App />
+          <ModeProvider>
+            <App />
+          </ModeProvider>
         </FlashProvider>
       </AuthProvider>
     </BrowserRouter>

@@ -54,3 +54,24 @@ export const UsersIcon = ({ className }: P) => (
     <path d="M17 14.5c2.3.2 4 1.8 4.5 4.5" />
   </svg>
 );
+export const QuillIcon = ({ className }: P) => (
+  <svg {...base} className={className}>
+    <path d="M20 3c-6 1-10.5 5-12.5 11L6 19" />
+    <path d="M20 3c.5 5-3 9.5-9 11.5" />
+    <path d="M4 21l2-2M10 9l3 1" />
+  </svg>
+);
+export const CrownIcon = ({ className }: P) => (
+  <svg {...base} className={className}>
+    <path d="M4 18l-1-10 5 4 4-7 4 7 5-4-1 10z" />
+    <path d="M4 21h16" />
+  </svg>
+);
+export const BooksIcon = ({ className }: P) => (
+  <svg {...base} className={className}>
+    <rect x="3" y="4" width="4" height="16" rx=".5" />
+    <rect x="8" y="6" width="4" height="14" rx=".5" />
+    <path d="M14 7.5l3.8-1 3.2 12.6-3.8 1z" />
+    <path d="M3 8h4M8 10h4" />
+  </svg>
+);

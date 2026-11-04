@@ -51,7 +51,7 @@ export function RequireAdmin({ children }: { children: ReactNode }) {
 export function GuestOnly({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
   if (loading) return <Loading />;
-  if (user) return <Navigate to="/dashboard" replace />;
+  if (user) return <Navigate to="/tavern" replace />;
   return <>{children}</>;
 }
 

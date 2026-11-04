@@ -18,7 +18,7 @@ export function Layout() {
           </span>
         </Link>
         <nav className="main-nav" aria-label="Main">
-          {user && <NavLink to="/dashboard">Dashboard</NavLink>}
+          {user && <NavLink to="/tavern" data-testid="nav-tavern">Tavern</NavLink>}
           {user?.role === "admin" && (
             <NavLink to="/admin/users" data-testid="nav-admin">
               Admin
