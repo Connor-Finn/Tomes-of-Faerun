@@ -39,7 +39,7 @@ def create_app(overrides: dict | None = None) -> Flask:
     Path(app.config["UPLOAD_FOLDER"]).mkdir(parents=True, exist_ok=True)
     db.init_app(app)
 
-    from . import (account, admin, auth, bestiary, campaigns, chat, dev, friends, items, joining, parties, published,
+    from . import (account, admin, auth, bestiary, campaigns, chat, dev, friends, items, joining, parties, published, roadmaps,
                    spa, spells)
     from .characters import api as characters_api
     from .rules import api as rules_api
@@ -62,6 +62,7 @@ def create_app(overrides: dict | None = None) -> Flask:
     app.register_blueprint(friends.bp)
     app.register_blueprint(chat.bp)
     app.register_blueprint(published.bp)
+    app.register_blueprint(roadmaps.bp)
     app.register_blueprint(campaigns.bp)
     app.register_blueprint(spa.bp)  # last: it catches every other URL
 

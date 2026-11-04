@@ -12,9 +12,10 @@ from .spell_pages import SpellPage, SpellsPage
 from .item_pages import ItemPage, ItemPicker, ItemsPage
 from .campaign_pages import CampaignCharacterPage, CampaignTomePage, DmCampaignsPage, PartiesPage
 from .friends_pages import FindPartyPage, FriendsPage, JoinRequestsPage
+from .roadmap_pages import InstanceRoadmapPanel, RoadmapPage, RoadmapsPage
 
 __all__ = ["LoginPage", "SignupPage", "GuildHallPage", "TomePage", "MyCharactersPage", "CreateCharacterPage",
            "CharacterPage", "BuilderPage", "BestiaryPage", "MonsterPage", "CollectionsPage", "CollectionPage",
            "EnvironmentsPage", "SpellsPage", "SpellPage", "ItemsPage", "ItemPage", "ItemPicker",
            "DmCampaignsPage", "CampaignTomePage", "PartiesPage", "CampaignCharacterPage",
-           "FriendsPage", "FindPartyPage", "JoinRequestsPage"]
+           "FriendsPage", "FindPartyPage", "JoinRequestsPage", "RoadmapsPage", "RoadmapPage", "InstanceRoadmapPanel"]

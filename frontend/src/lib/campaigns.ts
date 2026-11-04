@@ -7,6 +7,7 @@
  */
 import type { BuildMode, CharacterSummary, CheckResult, Build } from "./characters";
 import type { CollectionSummary } from "./bestiary";
+import type { RoadmapSummary } from "./roadmaps";
 
 export type CampaignStatus = "planning" | "active" | "finished";
 
@@ -86,11 +87,39 @@ export interface Campaign extends CampaignSummary {
   encounters?: Encounter[];
 }
 
+export interface InstanceBackup {
+  name: string;
+  level: number;
+  race: string | null;
+  class: string | null;
+  subclass: string | null;
+  build_mode: BuildMode;
+  max_hp: number;
+  current_hp: number;
+  temp_hp: number;
+  reason: string;
+  saved_at: string;
+}
+
+export interface InstanceFollowing {
+  roadmap_id: number;
+  name: string;
+  start_level: number;
+  end_level: number;
+  /** The next level the roadmap has planned, or null when it ends here. */
+  next_level: number | null;
+  followed_at: string;
+}
+
 export interface InstanceDetail extends CheckResult {
   instance: InstanceSummary & {
     build: Build;
     campaign: { id: number; name: string };
     base_character: CharacterSummary | null;
+    /** Only on your own character: */
+    following?: InstanceFollowing | null;
+    backup?: InstanceBackup | null;
+    roadmaps?: (RoadmapSummary & { covers_level: boolean })[];
   };
 }
 

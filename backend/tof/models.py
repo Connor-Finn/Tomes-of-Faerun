@@ -144,6 +144,8 @@ class Character(db.Model):
     user: Mapped[User] = relationship(back_populates="characters")
     # Deleting a character keeps its campaign instances: they just lose the link back here.
     instances: Mapped[list[CharacterInstance]] = relationship(back_populates="character")
+    roadmaps: Mapped[list[Roadmap]] = relationship(
+        back_populates="character", cascade="all, delete-orphan", order_by="Roadmap.id")
 
     def to_dict(self) -> dict:
         from .characters.engine import name_of
@@ -362,6 +364,9 @@ class CharacterInstance(db.Model):
     campaign: Mapped[Campaign] = relationship(back_populates="instances")
     user: Mapped[User] = relationship(back_populates="instances")
     character: Mapped[Character | None] = relationship(back_populates="instances")
+    following: Mapped[InstanceRoadmap | None] = relationship(
+        back_populates="instance", cascade="all, delete-orphan", uselist=False)
+    backup: Mapped[InstanceBackup | None] = relationship(cascade="all, delete-orphan", uselist=False)
 
 
 class PublishedCharacter(db.Model):
@@ -383,6 +388,7 @@ class PublishedCharacter(db.Model):
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
 
     author: Mapped[User] = relationship(back_populates="published")
+    roadmaps: Mapped[list[PublishedRoadmap]] = relationship(cascade="all, delete-orphan", order_by="PublishedRoadmap.id")
 
 
 class PartyMessage(db.Model):
@@ -451,3 +457,73 @@ class JoinRequest(db.Model):
     party: Mapped[Party] = relationship(back_populates="join_requests")
     user: Mapped[User] = relationship(foreign_keys=[user_id])
     suggested_by: Mapped[User | None] = relationship(foreign_keys=[suggested_by_id])
+
+
+class Roadmap(db.Model):
+    """A planned route of level-ups for one base character, up to level 20.
+
+    `levels` holds the character's levelling choices at every planned level, keyed by level
+    ("4": {"subclass": ..., "choices": {...}}). The first key is the level the character was at
+    when the roadmap started, copied from the character; each later level is a complete snapshot,
+    so following the roadmap at level 7 is just "take level 7's choices".
+    """
+    __tablename__ = "roadmaps"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    character_id: Mapped[int] = mapped_column(ForeignKey("characters.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(60))
+    start_level: Mapped[int] = mapped_column(default=1)
+    levels: Mapped[dict] = mapped_column(db.JSON)
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(default=utcnow, onupdate=utcnow)
+
+    character: Mapped[Character] = relationship(back_populates="roadmaps")
+    followers: Mapped[list[InstanceRoadmap]] = relationship(back_populates="roadmap", cascade="all, delete-orphan")
+
+    @property
+    def end_level(self) -> int:
+        return max(int(k) for k in self.levels)
+
+
+class InstanceRoadmap(db.Model):
+    """A campaign instance following one of its base character's roadmaps.
+
+    Its own table (rather than a column on character_instances) so existing databases pick it up
+    without a migration.
+    """
+    __tablename__ = "instance_roadmaps"
+
+    instance_id: Mapped[int] = mapped_column(ForeignKey("character_instances.id", ondelete="CASCADE"), primary_key=True)
+    roadmap_id: Mapped[int] = mapped_column(ForeignKey("roadmaps.id", ondelete="CASCADE"), index=True)
+    followed_at: Mapped[datetime] = mapped_column(default=utcnow)
+
+    instance: Mapped[CharacterInstance] = relationship(back_populates="following")
+    roadmap: Mapped[Roadmap] = relationship(back_populates="followers")
+
+
+class InstanceBackup(db.Model):
+    """The one backup copy a player may keep of their character in a campaign."""
+    __tablename__ = "instance_backups"
+
+    instance_id: Mapped[int] = mapped_column(ForeignKey("character_instances.id", ondelete="CASCADE"), primary_key=True)
+    name: Mapped[str] = mapped_column(String(60))
+    build: Mapped[dict] = mapped_column(db.JSON)
+    build_mode: Mapped[str] = mapped_column(String(10), default="standard")
+    current_hp: Mapped[int | None]
+    temp_hp: Mapped[int] = mapped_column(default=0)
+    # The roadmap the instance was following when the backup was made (no foreign key: the roadmap
+    # may be deleted later, and restoring then just doesn't follow anything).
+    roadmap_id: Mapped[int | None]
+    reason: Mapped[str] = mapped_column(String(100), default="")
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
+
+
+class PublishedRoadmap(db.Model):
+    """A roadmap attached to a published character: a snapshot, like the character itself."""
+    __tablename__ = "published_roadmaps"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    published_id: Mapped[int] = mapped_column(ForeignKey("published_characters.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(60))
+    start_level: Mapped[int] = mapped_column(default=1)
+    levels: Mapped[dict] = mapped_column(db.JSON)

@@ -55,9 +55,9 @@ def test_publish_a_character_and_another_player_copies_it(
     give_character(logged_in_page, hero)
     author = PublishPage(logged_in_page).open()
     expect(author.none_published).to_be_visible()
-    expect(author.roadmap_note).to_contain_text("Level roadmaps aren't written yet")
 
     author.character.select_option(label=f"{hero}: Level 1 Human Fighter")
+    expect(author.roadmap_note).to_contain_text(f"{hero} has no roadmaps.")
     author.description.fill("Holds the line so your casters don't have to.")
     author.publish_button.click()
     expect(author.dialog).to_contain_text(f"editing {hero} later won't change it")

@@ -119,7 +119,7 @@ export const SECTIONS: SectionDef[] = [
         summary: "Share a character as a template other players can start from.",
         plans: [
           "Publishing makes a fixed copy, so later edits to your character don't change it.",
-          "Choose which of the character's level roadmaps to include (once roadmaps exist).",
+          "Choose which of the character's level roadmaps to include: none, some or all.",
           "See how many players copied each one, and unpublish at any time.",
         ],
       },

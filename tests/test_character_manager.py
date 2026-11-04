@@ -136,10 +136,11 @@ def test_notes_are_saved(logged_in_page: Page):
     expect(tome.note("Backstory")).to_have_value("Aldric once guarded a dragon's egg by mistake.")
 
 
-def test_unbuilt_pages_show_their_plans(logged_in_page: Page):
+def test_roadmaps_are_the_last_page(logged_in_page: Page):
     character = create_via_api(logged_in_page, template="human-fighter")
     tome = CharacterPage(logged_in_page).open_character(character["id"], "roadmaps")
-    expect(logged_in_page.get_by_test_id("draft-page")).to_contain_text("up to level 20")
+    expect(tome.page_title).to_have_text("Roadmaps")
+    expect(tome.next_page).to_have_count(0)
     tome.prev_page.click()
     expect(tome.page_title).to_have_text("Campaigns")
 

@@ -20,7 +20,8 @@ that run on every push.
 | My characters, character sheets, premade templates, build mode | ✅ Done |
 | Character builder: Standard (free tabs, levels 1 to 20) and Easy (guided tutorial, levels 1 to 3) | ✅ Done |
 | Publishing characters: share a fixed copy other players can browse, search and copy | ✅ Done |
-| Level roadmaps | 🛠 Planned |
+| Level roadmaps: plan level-ups up to 20, one level at a time; campaign characters follow them; published characters can bring them along | ✅ Done |
+| Backup copies: keep one copy of your character in each campaign and swap back to it | ✅ Done |
 | Bestiary: stat blocks, monster collections (minion / elite / boss), environments | ✅ Done |
 | Spell catalogue (search, filters, full rules text), favourite spells, readable character spellbooks | ✅ Done |
 | Items catalogue (equipment and magic items, search, filters, full descriptions), favourite items, adding items to characters | ✅ Done |

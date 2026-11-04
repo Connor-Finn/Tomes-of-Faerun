@@ -898,3 +898,45 @@ form.bestiary-filters .field.checks { grid-column: 1 / -1; display: flex; flex-w
 .notice-board .notice:nth-child(even) { transform: rotate(0.35deg); }
 .notice-board .notice::before { content: ""; position: absolute; top: -0.35rem; left: 50%; width: 0.7rem; height: 0.7rem; margin-left: -0.35rem; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #c0503f, #6d1a12); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35); }
 .notice-board .notice h3 { margin: 0.1rem 0 0.2rem; }
+
+/* ---------- Level roadmaps: a route of milestones inked down the page ---------- */
+.roadmap-list { list-style: none; margin: 1.2rem 0; padding: 0; display: grid; gap: 0.8rem; }
+.roadmap-card {
+  padding: 0.9rem 1rem; border-radius: 3px; background: rgba(255, 250, 236, 0.4);
+  border: 1px solid rgba(95, 65, 30, 0.3); box-shadow: 0 1px 3px rgba(60, 35, 10, 0.2);
+}
+.roadmap-card p { margin: 0.3rem 0 0; }
+.roadmap-name { font-family: var(--font-display); font-size: 1.35rem; }
+.roadmap-new { margin-top: 1.2rem; align-items: end; }
+/* Twenty dots on a dashed trail; planned levels are inked in */
+.roadmap-track {
+  list-style: none; margin: 0.6rem 0; padding: 0; display: grid; grid-template-columns: repeat(20, 1fr);
+  gap: 2px; align-items: center; max-width: 30rem; position: relative;
+}
+.roadmap-track::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; border-top: 2px dashed rgba(95, 65, 30, 0.35); }
+.roadmap-track li { position: relative; justify-self: center; width: 0.6rem; height: 0.6rem; border-radius: 50%; border: 1px solid rgba(95, 65, 30, 0.55); background: var(--parchment); }
+.roadmap-track li.before { opacity: 0.35; }
+.roadmap-track li.start { background: var(--brass); border-color: #8a6420; width: 0.8rem; height: 0.8rem; }
+.roadmap-track li.planned { background: var(--wax); border-color: var(--wax-dark); }
+.roadmap-levels { list-style: none; margin: 1.2rem 0; padding: 0; }
+.roadmap-level { position: relative; display: grid; grid-template-columns: 2.4rem 1fr; gap: 0.8rem; padding-bottom: 1rem; }
+.roadmap-level::before { content: ""; position: absolute; left: 1.15rem; top: 2.3rem; bottom: 0; border-left: 2px dashed rgba(95, 65, 30, 0.4); }
+.roadmap-level:last-child::before { display: none; }
+.roadmap-milestone {
+  display: grid; place-items: center; width: 2.4rem; height: 2.4rem; border-radius: 50%;
+  font-family: var(--font-display); font-size: 1.1rem; color: var(--parchment);
+  background: radial-gradient(circle at 35% 30%, var(--wax-light), var(--wax-dark));
+  box-shadow: 0 1px 3px rgba(60, 35, 10, 0.4);
+}
+.roadmap-level.start .roadmap-milestone { background: radial-gradient(circle at 35% 30%, var(--brass-light), #8a6420); color: var(--ink); }
+.roadmap-level.broken .roadmap-milestone { background: radial-gradient(circle at 35% 30%, #a99a86, #6e5234); }
+.roadmap-level-body { min-width: 0; }
+.roadmap-level-body p { margin: 0.15rem 0 0.3rem; }
+.roadmap-level-title { margin: 0.35rem 0 0.1rem; font-family: var(--font-display); font-weight: 400; font-size: 1.2rem; display: flex; gap: 0.5rem; align-items: center; }
+.roadmap-level-title .pill { font-size: 0.8rem; color: #8a6420; }
+.roadmap-changes { margin: 0.1rem 0 0.4rem; }
+.instance-roadmap, .instance-backup { border-top: 1px dotted var(--line); padding-top: 0.5rem; }
+.instance-roadmap p, .instance-backup p { margin: 0.2rem 0 0.4rem; }
+.instance-roadmap .leaf-heading, .instance-backup .leaf-heading { margin-top: 0.2rem; }
+.roadmap-rename { align-items: end; gap: 0.6rem; margin-bottom: 0.4rem; }
+.roadmap-rename .field { flex: 1 1 14rem; margin: 0; }

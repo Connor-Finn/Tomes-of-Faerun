@@ -21,6 +21,7 @@ import { useFavouriteSpells } from "../../lib/spells";
 import { ItemReader } from "../items/ItemText";
 import { CharacterCampaignsPage } from "../campaigns/CharacterCampaigns";
 import { FavouriteStar, SpellReader } from "../spells/SpellText";
+import { RoadmapPage, RoadmapsPage } from "../roadmaps/RoadmapPages";
 
 /** Every character opens as its own tome. */
 export const CHARACTER_PAGES = [
@@ -34,7 +35,7 @@ export const CHARACTER_PAGES = [
 ];
 
 export function CharacterTome() {
-  const { id, page: slug } = useParams();
+  const { id, page: slug, sub } = useParams();
   const characterId = Number(id);
   useEnterMode("player");
   const { detail, status, replace } = useCharacter(characterId);
@@ -85,17 +86,12 @@ export function CharacterTome() {
         {page?.slug === "features" && <FeaturesPage sheet={sheet} />}
         {page?.slug === "notes" && <NotesPage detail={detail} onSaved={replace} />}
         {page?.slug === "campaigns" && <CharacterCampaignsPage characterId={character.id} name={character.name} />}
-        {page?.slug === "roadmaps" && (
-          <PlannedPage
-            title="Roadmaps"
-            summary="Plan this character's level-ups ahead of time."
-            plans={[
-              "Named roadmaps of level choices (subclass, spells, ability scores) up to level 20.",
-              "Keep several, edit them and delete them.",
-              "A campaign instance can follow a roadmap when it levels up.",
-            ]}
-          />
-        )}
+        {page?.slug === "roadmaps" &&
+          (sub ? (
+            <RoadmapPage characterId={character.id} roadmapId={Number(sub)} />
+          ) : (
+            <RoadmapsPage character={character} />
+          ))}
       </Tome>
     </>
   );
@@ -637,23 +633,6 @@ function NotesPage({ detail, onSaved }: { detail: CharacterDetail; onSaved: (d: 
           </button>
         </div>
       </form>
-    </section>
-  );
-}
-
-function PlannedPage({ title, summary, plans }: { title: string; summary: string; plans: string[] }) {
-  return (
-    <section aria-labelledby="page-title" data-testid="draft-page">
-      <PageHeading title={title} summary={summary} />
-      <div className="draft-note">
-        <span className="badge">Being written</span>
-        <h3>Planned for this page</h3>
-        <ul className="plans">
-          {plans.map((p) => (
-            <li key={p}>{p}</li>
-          ))}
-        </ul>
-      </div>
     </section>
   );
 }

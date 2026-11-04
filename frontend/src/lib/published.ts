@@ -17,6 +17,8 @@ export interface PublishedCharacter extends Omit<Template, "id"> {
   /** Your own publications only: the character it was published from (null once deleted). */
   character_id: number | null;
   published_at: string;
+  /** Roadmaps the author included: copies of the character get their own copies of these. */
+  roadmaps: { name: string; start_level: number; end_level: number }[];
 }
 
 export const PUBLISH_PATH = "/play/characters/publish";

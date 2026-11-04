@@ -18,6 +18,8 @@ import { useFlash } from "../../lib/flash";
 import { MODE_LABELS, useEnterMode } from "../../lib/mode";
 import { playerCampaignPath, type InstanceDetail } from "../../lib/campaigns";
 import { ItemPicker } from "../items/ItemPicker";
+import { ConfirmDialog } from "../bestiary/ConfirmDialog";
+import { roadmapPath, type RoadmapLevelDetail } from "../../lib/roadmaps";
 import { AbilityScores, Help, SlotView, type AbilityScoresValue } from "./builderParts";
 
 /**
@@ -44,6 +46,8 @@ const SECTION_TITLES: Record<SectionKey, string> = {
 };
 const STANDARD_ORDER: SectionKey[] = ["basics", "class", "race", "abilities", "background", "spells", "equipment", "review"];
 const EASY_ORDER: SectionKey[] = ["class", "race", "abilities", "background", "spells", "equipment", "basics", "review"];
+/** Planning a roadmap level only touches levelling choices: race, background and kit come from the character. */
+const ROADMAP_ORDER: SectionKey[] = ["class", "abilities", "spells", "review"];
 
 /** Plain-language pointers for new players. Flavour only: the rules come from the server. */
 const CLASS_HINTS: Record<string, string> = {
@@ -102,29 +106,42 @@ function forCheck(build: Build): Build {
   return build;
 }
 
-function useLiveCheck(build: Build | null, mode: BuildMode) {
+function useLiveCheck(build: Build | null, mode: BuildMode, previousLevel: number) {
   const [result, setResult] = useState<CheckResult | null>(null);
   const seq = useRef(0);
   useEffect(() => {
     if (!build) return;
     const n = ++seq.current;
     const timer = setTimeout(async () => {
-      const res = await api.post<CheckResult>("/api/characters/check", { build: forCheck(build), build_mode: mode });
+      const res = await api.post<CheckResult>("/api/characters/check", {
+        build: forCheck(build),
+        build_mode: mode,
+        previous_level: previousLevel,
+      });
       if (res.ok && n === seq.current) setResult(res.data);
     }, 150);
     return () => clearTimeout(timer);
-  }, [build, mode]);
+  }, [build, mode, previousLevel]);
   return result;
 }
 
 export function Builder() {
-  const { id, campaignId } = useParams();
+  const { id, campaignId, roadmapId, level: planLevel } = useParams();
   const [params] = useSearchParams();
   // In a campaign the builder edits the player's instance there, never the base character.
   const inCampaign = campaignId !== undefined;
+  // Planning a roadmap level saves into the roadmap, never the base character.
+  const inRoadmap = roadmapId !== undefined;
   const editing = id !== undefined || inCampaign;
-  const loadUrl = inCampaign ? `/api/campaigns/${campaignId}/instance` : `/api/characters/${id}`;
+  const loadUrl = inCampaign
+    ? `/api/campaigns/${campaignId}/instance`
+    : inRoadmap
+      ? `/api/roadmaps/${roadmapId}/levels/${planLevel}`
+      : `/api/characters/${id}`;
   const [campaignName, setCampaignName] = useState("");
+  const [followingName, setFollowingName] = useState<string | null>(null);
+  const [roadmapInfo, setRoadmapInfo] = useState<Pick<RoadmapLevelDetail, "roadmap" | "planned" | "later_levels"> | null>(null);
+  const [confirmReplan, setConfirmReplan] = useState(false);
   useEnterMode("player");
   const options = useCharacterOptions();
   const { flash } = useFlash();
@@ -136,16 +153,18 @@ export function Builder() {
   const [loadError, setLoadError] = useState<string | null>(null);
   // ?section=spells opens the builder on that page, e.g. from a character's spellbook
   const asked = params.get("section") as SectionKey | null;
-  const startSection = (m: BuildMode): SectionKey => (asked && asked in SECTION_TITLES ? asked : m === "easy" && !inCampaign ? "class" : "basics");
+  const startSection = (m: BuildMode): SectionKey =>
+    asked && asked in SECTION_TITLES ? asked : inRoadmap || (m === "easy" && !inCampaign) ? "class" : "basics";
   const [section, setSection] = useState<SectionKey>(startSection(mode));
   const [saving, setSaving] = useState(false);
   const [saveErrors, setSaveErrors] = useState<Problem[]>([]);
   const [startLevel, setStartLevel] = useState(0);
-  const result = useLiveCheck(build, mode);
+  // Easy build's level cap is for creating characters: campaign copies and roadmaps are past that.
+  const result = useLiveCheck(build, mode, inCampaign || inRoadmap ? 20 : startLevel);
 
   useEffect(() => {
     if (!editing) return;
-    void api.get<CharacterDetail & { instance?: InstanceDetail["instance"] }>(loadUrl).then((res) => {
+    void api.get<CharacterDetail & { instance?: InstanceDetail["instance"] } & Partial<RoadmapLevelDetail>>(loadUrl).then((res) => {
       if (!res.ok) {
         setLoadError(res.status === 404 ? "Character not found." : res.data.error ?? "Couldn't open the character.");
         return;
@@ -156,12 +175,20 @@ export function Builder() {
       setName(c.name);
       setStartLevel(c.level);
       setSection(startSection(c.build_mode));
-      if (res.data.instance) setCampaignName(res.data.instance.campaign.name);
+      if (res.data.instance) {
+        setCampaignName(res.data.instance.campaign.name);
+        setFollowingName(res.data.instance.following?.name ?? null);
+      }
+      if (res.data.roadmap) {
+        setRoadmapInfo({ roadmap: res.data.roadmap, planned: Boolean(res.data.planned), later_levels: res.data.later_levels ?? 0 });
+      }
     });
   }, [editing, loadUrl]);
 
   const hasSpells = Boolean(result?.slots.some((s) => s.group === "spells"));
-  const order = (mode === "easy" ? EASY_ORDER : STANDARD_ORDER).filter((s) => s !== "spells" || hasSpells || mode === "standard");
+  const order = (inRoadmap ? ROADMAP_ORDER : mode === "easy" ? EASY_ORDER : STANDARD_ORDER).filter(
+    (s) => s !== "spells" || hasSpells || (mode === "standard" && !inRoadmap),
+  );
 
   const status = useMemo(() => {
     const out: Record<string, { missing: number; errors: number }> = {};
@@ -171,8 +198,21 @@ export function Builder() {
     return out;
   }, [result]);
 
-  const doneUrl = inCampaign ? playerCampaignPath(Number(campaignId), "character") : null;
-  const trail = inCampaign
+  const doneUrl = inCampaign
+    ? playerCampaignPath(Number(campaignId), "character")
+    : inRoadmap
+      ? roadmapPath(Number(id), Number(roadmapId))
+      : null;
+  const trail = inRoadmap
+    ? [
+        { label: "Guild Hall", to: "/guild-hall" },
+        { label: MODE_LABELS.player, to: "/guild-hall" },
+        { label: "Character Manager", to: "/play/characters/my-characters" },
+        { label: name, to: characterPath(Number(id), "roadmaps") },
+        { label: roadmapInfo?.roadmap.name ?? "Roadmap", to: doneUrl! },
+        { label: `Level ${planLevel}` },
+      ]
+    : inCampaign
     ? [
         { label: "Guild Hall", to: "/guild-hall" },
         { label: MODE_LABELS.player, to: "/guild-hall" },
@@ -204,17 +244,36 @@ export function Builder() {
 
   const update = (patch: Partial<Build>) => {
     setSaveErrors([]);
-    setBuild((b) => withoutStalePicks(b as Build, patch));
+    // A roadmap only plans levelling choices: everything else stays as the character has it.
+    const allowed = inRoadmap ? (Object.fromEntries(Object.entries(patch).filter(([k]) => k === "subclass")) as Partial<Build>) : patch;
+    setBuild((b) => withoutStalePicks(b as Build, allowed));
   };
   const setChoice = (slotId: string, values: string[]) => {
     setSaveErrors([]);
     setBuild((b) => ({ ...(b as Build), choices: { ...(b?.choices ?? {}), [slotId]: values } }));
   };
 
-  async function save() {
+  async function save(confirmed = false) {
     if (!build) return;
+    if (inRoadmap && roadmapInfo && roadmapInfo.later_levels > 0 && !confirmed) {
+      setConfirmReplan(true);
+      return;
+    }
     setSaving(true);
     const body = { build: forCheck(build), build_mode: mode };
+    if (inRoadmap) {
+      const res = await api.put<{ message: string }>(loadUrl, { build: forCheck(build) });
+      setSaving(false);
+      if (!res.ok) {
+        const problems = (res.data as unknown as { errors?: Problem[] }).errors;
+        const list = problems ?? [{ field: "build", message: res.data.error ?? "The level wasn't saved." }];
+        setSaveErrors(list);
+        return res.data.error ?? "The level wasn't saved.";
+      }
+      flash("success", res.data.message, { afterNavigate: true });
+      navigate(doneUrl!);
+      return;
+    }
     if (inCampaign) {
       const res = await api.patch<InstanceDetail>(loadUrl, body);
       setSaving(false);
@@ -250,7 +309,7 @@ export function Builder() {
   const index = order.indexOf(section);
   const errorsHere = result?.errors.filter((e) => sectionOf(e.field) === section) ?? [];
   const slotsHere = (result?.slots ?? []).filter((s) => sectionOf(s.id) === section);
-  const pageProps: PageProps = { build, options, result, mode, update, setChoice, slots: slotsHere, maxLevel: mode === "easy" && !inCampaign ? Math.max(options.easy_max_level, startLevel) : options.max_level, inCampaign };
+  const pageProps: PageProps = { build, options, result, mode, update, setChoice, slots: slotsHere, maxLevel: mode === "easy" && !inCampaign ? Math.max(options.easy_max_level, startLevel) : options.max_level, inCampaign, inRoadmap };
 
   return (
     <>
@@ -259,10 +318,31 @@ export function Builder() {
         <header className="builder-header">
           <div>
             <p className="tome-eyebrow">{BUILD_MODE_LABELS[mode]}</p>
-            <h1>{inCampaign ? `Levelling up ${name}` : editing ? `Editing ${name}` : "A new character"}</h1>
+            <h1>
+              {inRoadmap
+                ? `Planning level ${planLevel} for ${name}`
+                : inCampaign
+                  ? `Levelling up ${name}`
+                  : editing
+                    ? `Editing ${name}`
+                    : "A new character"}
+            </h1>
+            {inRoadmap && (
+              <p className="muted" data-testid="roadmap-builder-note">
+                {roadmapInfo?.planned ? "Changing" : "Planning"} level {planLevel} of the roadmap “{roadmapInfo?.roadmap.name}”.
+                Choices new at this level are marked with a number. Race, background and starting equipment stay as {name}{" "}
+                has them, and {name} in the Character Manager stays at level {startLevel}.
+              </p>
+            )}
             {inCampaign && (
               <p className="muted" data-testid="campaign-builder-note">
                 Changes here only apply to {name} in {campaignName}. Your character in the Character Manager stays as it is.
+              </p>
+            )}
+            {inCampaign && followingName && (
+              <p className="notice" data-testid="builder-following-note">
+                {name} follows the roadmap “{followingName}”. Saving changes here stops following it; your choices so far
+                stay.
               </p>
             )}
             <p className="muted">
@@ -272,8 +352,8 @@ export function Builder() {
             </p>
           </div>
           <div className="builder-actions">
-            <button type="button" className="btn primary" onClick={save} disabled={saving || !result}>
-              {saving ? "Saving…" : editing ? "Save changes" : "Save character"}
+            <button type="button" className="btn primary" onClick={() => void save()} disabled={saving || !result}>
+              {saving ? "Saving…" : inRoadmap ? `Save level ${planLevel}` : editing ? "Save changes" : "Save character"}
             </button>
             <p className="small muted" data-testid="builder-status">
               {!result
@@ -354,6 +434,21 @@ export function Builder() {
           {section === "review" && <ReviewPage {...pageProps} goTo={setSection} />}
         </section>
 
+        {confirmReplan && roadmapInfo && (
+          <ConfirmDialog
+            title={`Re-plan level ${planLevel}?`}
+            confirmLabel={`Save and clear ${roadmapInfo.later_levels} later level${roadmapInfo.later_levels === 1 ? "" : "s"}`}
+            cancelLabel="Keep planning"
+            onClose={() => setConfirmReplan(false)}
+            onConfirm={async () => (await save(true)) ?? undefined}
+          >
+            <p>
+              The roadmap has {roadmapInfo.later_levels} level{roadmapInfo.later_levels === 1 ? "" : "s"} planned after level{" "}
+              {planLevel}. They were planned from the old choices, so saving clears them and you plan them again.
+            </p>
+          </ConfirmDialog>
+        )}
+
         {mode === "easy" && (
           <nav className="wizard-nav" aria-label="Steps">
             {index > 0 ? (
@@ -385,6 +480,8 @@ interface PageProps {
   maxLevel: number;
   /** True when levelling a character inside a campaign, rather than creating one. */
   inCampaign?: boolean;
+  /** True when planning one level of a roadmap: only levelling choices can change. */
+  inRoadmap?: boolean;
   update: (patch: Partial<Build>) => void;
   setChoice: (slotId: string, values: string[]) => void;
 }
@@ -470,11 +567,16 @@ function BasicsPage({ build, options, mode, update, maxLevel, inCampaign }: Page
   );
 }
 
-function ClassPage({ build, options, result, mode, update, slots, setChoice }: PageProps) {
+function ClassPage({ build, options, result, mode, update, slots, setChoice, inRoadmap }: PageProps) {
   const cls = options.classes.find((c) => c.index === build.class);
   const level = build.level ?? 1;
   return (
     <div className="stack">
+      {inRoadmap ? (
+        <p className="hint">
+          Level {level} {cls?.name}. A roadmap keeps the character's class.
+        </p>
+      ) : (
       <fieldset className="field">
         <legend>Choose a class</legend>
         <Help mode={mode} text="Your class is what your character does: fights, casts spells, sneaks or heals. It decides your hit points, skills and features." />
@@ -497,6 +599,7 @@ function ClassPage({ build, options, result, mode, update, slots, setChoice }: P
           ))}
         </div>
       </fieldset>
+      )}
       {cls && level >= cls.subclass_level && (
         <fieldset className="field">
           <legend>Subclass</legend>
@@ -562,7 +665,7 @@ function RacePage({ build, options, mode, update, slots, setChoice }: PageProps)
   );
 }
 
-function AbilitiesPage({ build, options, result, mode, update, slots, setChoice }: PageProps) {
+function AbilitiesPage({ build, options, result, mode, update, slots, setChoice, inRoadmap }: PageProps) {
   const cls = options.classes.find((c) => c.index === build.class);
   return (
     <div className="stack">
@@ -575,7 +678,12 @@ function AbilitiesPage({ build, options, result, mode, update, slots, setChoice 
           . Put your highest score there.
         </p>
       )}
-      {result && (
+      {inRoadmap && (
+        <p className="hint">
+          Ability scores come from the character. Ability score improvements you gain along the roadmap are planned here.
+        </p>
+      )}
+      {result && !inRoadmap && (
         <AbilityScores
           value={(build.ability_scores ?? {}) as AbilityScoresValue}
           options={options}
