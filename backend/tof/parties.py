@@ -5,14 +5,14 @@
     GET    /api/parties/<id>                    the party, its members and its campaigns (DM and members)
     PATCH  /api/parties/<id>                    {name, description, visibility}   (DM only)
     DELETE /api/parties/<id>                    (DM only; its campaigns carry on without a party)
-    POST   /api/parties/<id>/invites            {email}   invite a player (DM only)
+    POST   /api/parties/<id>/invites            {email} or {user_id} of a friend   invite a player (DM only)
     POST   /api/parties/<id>/accept             accept your invitation
     POST   /api/parties/<id>/decline            decline your invitation
     DELETE /api/parties/<id>/members/<user_id>  DM removes a player or cancels an invite; a player can remove themselves
 
 Each party also has a chat (see chat.py); the party lists say how many messages you haven't read.
-Friend requests, public parties you can ask to join and player-to-player invites come later.
-`visibility` is stored now so those can use it.
+Public parties show up in the party search, where players ask to join; members can also suggest their
+friends. The DM answers those join requests (see joining.py and friends.py).
 """
 from __future__ import annotations
 
@@ -87,11 +87,23 @@ def _member_dict(m: PartyMember, show_email: bool) -> dict:
 
 
 def _detail(party: Party) -> dict:
+    from .friends import friends_of
+    from .joining import request_dict
+
     is_dm = party.dm_id == g.user.id
     # Members only see who's in; the DM also sees who's still invited (and the emails they typed).
     members = [m for m in party.members if is_dm or m.status == "member"]
-    return {"party": {**_summary(party), "role": "dm" if is_dm else "player",
-                      "members": [_member_dict(m, is_dm) for m in members]}}
+    # Friends who aren't in the party, invited or waiting on a request: the DM can invite them,
+    # and a member can suggest them to the DM.
+    taken = {m.user_id for m in party.members} | {r.user_id for r in party.join_requests} | {party.dm_id}
+    friends = [person(u) for u in friends_of(g.user) if u.id not in taken and u.is_verified and not u.is_banned]
+    detail = {**_summary(party), "role": "dm" if is_dm else "player",
+              "members": [_member_dict(m, is_dm) for m in members], "friends": friends}
+    if is_dm:
+        detail["requests"] = [request_dict(r) for r in party.join_requests]
+    else:
+        detail["suggestions"] = [request_dict(r) for r in party.join_requests if r.suggested_by_id == g.user.id]
+    return {"party": detail}
 
 
 def _fields(data: dict, current: Party | None = None) -> tuple[dict, dict]:
@@ -131,7 +143,7 @@ def list_parties():
         return {**_summary(p), "unread": unread_count(p, g.user)}
 
     return jsonify(
-        led=[with_unread(p) for p in led],
+        led=[{**with_unread(p), "request_count": len(p.join_requests)} for p in led],
         joined=[with_unread(p) for p in sorted(joined, key=lambda p: p.name.lower())],
         invitations=[{**_summary(m.party), "invited_at": m.invited_at.isoformat() + "Z"} for m in invites],
         limit=MAX_PARTIES,
@@ -189,21 +201,36 @@ def delete_party(party_id: int):
 @login_required
 def invite(party_id: int):
     party = _led(party_id)
-    email = text(json_body(), "email").lower()
-    if not email:
-        return _invalid({"email": "Type the email address the player signed up with."})
-    if email == g.user.email:
-        return _invalid({"email": "You're the party's Dungeon Master, so you don't need an invitation."})
-    user = get_user_by_email(email)
-    if user is None or not user.is_verified or user.is_banned:
-        return _invalid({"email": "No adventurer has signed up with that email."})
+    data = json_body()
+    field = "user_id" if data.get("user_id") is not None else "email"
+    if field == "user_id":
+        # Inviting one of your friends from the list: no email needed.
+        from .friends import are_friends
+        try:
+            user = db.session.get(User, int(data["user_id"]))
+        except (TypeError, ValueError):
+            user = None
+        if user is None or user.is_banned or not are_friends(g.user, user):
+            return _invalid({"user_id": "Choose one of your friends."})
+    else:
+        email = text(data, "email").lower()
+        if not email:
+            return _invalid({"email": "Type the email address the player signed up with."})
+        if email == g.user.email:
+            return _invalid({"email": "You're the party's Dungeon Master, so you don't need an invitation."})
+        user = get_user_by_email(email)
+        if user is None or not user.is_verified or user.is_banned:
+            return _invalid({"email": "No adventurer has signed up with that email."})
     existing = membership(party, user)
     if existing is not None:
         already = "is already in the party" if existing.status == "member" else "has already been invited"
-        return _invalid({"email": f"{user.name} {already}."})
+        return _invalid({field: f"{user.name} {already}."})
     if len(party.members) >= MAX_MEMBERS:
         abort(400, description=f"A party has room for {MAX_MEMBERS} players, counting open invitations.")
     party.members.append(PartyMember(user_id=user.id))
+    # Inviting someone answers any request to join that was waiting for them.
+    for r in [r for r in party.join_requests if r.user_id == user.id]:
+        party.join_requests.remove(r)
     if user.notify_party:
         send_email(user.email, f"{g.user.name} invited you to join {party.name}",
                    f"Greetings {user.name},\n\n{g.user.name} has invited you to join the party "

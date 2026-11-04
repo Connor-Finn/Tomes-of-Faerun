@@ -883,3 +883,18 @@ form.bestiary-filters .field.checks { grid-column: 1 / -1; display: flex; flex-w
   .magic-paper, .chat-writing.on, .chat-line.inking .ink-word, .chat-line.inking .chat-meta { animation: none; }
   .chat-line.fading { animation-duration: 0.01s; }
 }
+
+/* ---------------------------------------------------------------- Friends and joining parties */
+.person-list { list-style: none; margin: 0.8rem 0 0; padding: 0; display: grid; gap: 0.2rem; }
+.person { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.9rem; padding: 0.5rem 0.2rem; border-bottom: 1px dotted var(--line); }
+.person > .btn, .person > .row, .person > .pill:last-child { margin-left: auto; }
+.person .grow { flex: 1 1 16rem; min-width: 0; }
+.person .member-name { margin: 0; }
+.person.request p { margin: 0.1rem 0; }
+.person-avatar { width: 2.1rem; height: 2.1rem; border-radius: 50%; object-fit: cover; flex: none; border: 1px solid rgba(95, 65, 30, 0.45); box-shadow: 0 1px 2px rgba(60, 35, 10, 0.25); }
+.person-avatar.initial { display: inline-grid; place-items: center; font-family: var(--font-display); font-size: 1.05rem; color: var(--parchment, #f4ead2); background: radial-gradient(circle at 35% 30%, #9a6a3a, #5a3a1c); }
+.request-note { margin: 0.3rem 0 0; padding: 0.3rem 0.7rem; border-left: 3px solid rgba(143, 42, 32, 0.45); font-family: var(--font-fell); font-style: italic; }
+.notice-board .notice { position: relative; background: rgba(255, 248, 228, 0.65); transform: rotate(-0.3deg); }
+.notice-board .notice:nth-child(even) { transform: rotate(0.35deg); }
+.notice-board .notice::before { content: ""; position: absolute; top: -0.35rem; left: 50%; width: 0.7rem; height: 0.7rem; margin-left: -0.35rem; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #c0503f, #6d1a12); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35); }
+.notice-board .notice h3 { margin: 0.1rem 0 0.2rem; }

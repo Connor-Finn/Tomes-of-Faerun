@@ -13,6 +13,8 @@ The app is split into blueprints, one per area of the product:
     items    the items catalogue (equipment and magic items) and each user's favourite items
     parties  the parties a DM leads: invitations, members
     chat     each party's chat: messages, unread marks, who's writing
+    friends  people search and friend requests
+    joining  public parties, and join requests the party's DM answers
     published  characters players publish as templates for others to copy
     campaigns  campaigns, session logs, encounters, and the characters players bring (instances)
     spa      serves the built React app for every non-API URL
@@ -37,7 +39,8 @@ def create_app(overrides: dict | None = None) -> Flask:
     Path(app.config["UPLOAD_FOLDER"]).mkdir(parents=True, exist_ok=True)
     db.init_app(app)
 
-    from . import account, admin, auth, bestiary, campaigns, chat, dev, items, parties, published, spa, spells
+    from . import (account, admin, auth, bestiary, campaigns, chat, dev, friends, items, joining, parties, published,
+                   spa, spells)
     from .characters import api as characters_api
     from .rules import api as rules_api
     from .security import load_current_user, require_csrf_header
@@ -54,7 +57,9 @@ def create_app(overrides: dict | None = None) -> Flask:
     app.register_blueprint(bestiary.bp)
     app.register_blueprint(spells.bp)
     app.register_blueprint(items.bp)
+    app.register_blueprint(joining.bp)  # before parties: /api/parties/public and /requests
     app.register_blueprint(parties.bp)
+    app.register_blueprint(friends.bp)
     app.register_blueprint(chat.bp)
     app.register_blueprint(published.bp)
     app.register_blueprint(campaigns.bp)

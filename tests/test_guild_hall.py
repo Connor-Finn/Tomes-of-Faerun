@@ -115,11 +115,13 @@ def test_turning_pages_forwards_and_back(logged_in_page: Page):
     expect(tome.page_title).to_have_text("Monster collections")
 
 
-def test_unbuilt_pages_show_what_is_planned(logged_in_page: Page):
-    TomePage(logged_in_page).open("/dm/campaigns/requests")
-    draft = logged_in_page.get_by_test_id("draft-page")
-    expect(draft.get_by_text("Being written")).to_be_visible()
-    expect(draft.get_by_role("listitem").filter(has_text="ask to join")).to_be_visible()
+def test_a_chapter_that_does_not_exist_says_so(logged_in_page: Page):
+    # Every chapter of the open tomes is written now, so the "draft" page has nothing to show until the
+    # next one is planned. A made-up chapter shows the torn-out page instead.
+    tome = TomePage(logged_in_page).open("/dm/campaigns/no-such-chapter")
+    missing = logged_in_page.get_by_test_id("missing-page")
+    expect(missing).to_contain_text("It may have been torn out.")
+    expect(tome.current_entry).to_have_count(0)
 
 
 @pytest.mark.parametrize("path,title,first_chapter", OPEN_SECTIONS)
