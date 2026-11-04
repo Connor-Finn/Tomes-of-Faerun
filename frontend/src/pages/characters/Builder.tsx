@@ -16,6 +16,7 @@ import {
 } from "../../lib/characters";
 import { useFlash } from "../../lib/flash";
 import { MODE_LABELS, useEnterMode } from "../../lib/mode";
+import { ItemPicker } from "../items/ItemPicker";
 import { AbilityScores, Help, SlotView, type AbilityScoresValue } from "./builderParts";
 
 /**
@@ -592,7 +593,7 @@ function SpellsPage({ build, result, mode, slots, setChoice }: PageProps) {
 
 function EquipmentPage({ build, result, mode, update, slots, setChoice }: PageProps) {
   if (!build.class && !build.background) return <Pending>Pick a class and background to see your starting equipment.</Pending>;
-  const armor = (result?.sheet.inventory ?? []).filter((i) => i.category === "Armor");
+  const armor = (result?.sheet.inventory ?? []).filter((i) => i.kind === "equipment" && i.category === "Armor");
   const bodyArmor = armor.filter((i) => i.index !== "shield");
   const hasShield = armor.some((i) => i.index === "shield");
   const equipped = build.equipped ?? result?.sheet.equipped ?? { armor: null, shield: null };
@@ -637,6 +638,12 @@ function EquipmentPage({ build, result, mode, update, slots, setChoice }: PagePr
           )}
         </fieldset>
       )}
+      <ItemPicker
+        items={build.items ?? {}}
+        inventory={result?.sheet.inventory ?? []}
+        mode={mode}
+        onChange={(items) => update({ items })}
+      />
     </div>
   );
 }

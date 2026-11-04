@@ -109,17 +109,17 @@ def test_turning_pages_forwards_and_back(logged_in_page: Page):
     expect(tome.page_title).to_have_text("Monster collections")
     tome.prev_page.click()
     expect(tome.page_title).to_have_text("Bestiary")
-    expect(tome.folio).to_have_text("Page 2 of 6")
+    expect(tome.folio).to_have_text("Page 2 of 5")
 
     logged_in_page.go_back()  # browser history follows the pages
     expect(tome.page_title).to_have_text("Monster collections")
 
 
 def test_unbuilt_pages_show_what_is_planned(logged_in_page: Page):
-    TomePage(logged_in_page).open("/dm/tomes/magic-items")
+    TomePage(logged_in_page).open("/dm/campaigns/parties")
     draft = logged_in_page.get_by_test_id("draft-page")
     expect(draft.get_by_text("Being written")).to_be_visible()
-    expect(draft.get_by_role("listitem").filter(has_text="Search by rarity")).to_be_visible()
+    expect(draft.get_by_role("listitem").filter(has_text="invite players")).to_be_visible()
 
 
 @pytest.mark.parametrize("path,title,first_chapter", OPEN_SECTIONS)

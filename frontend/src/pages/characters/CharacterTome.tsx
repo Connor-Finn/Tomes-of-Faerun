@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { Fragment, useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { Breadcrumbs, Tome } from "../../components/Tome";
 import { api } from "../../lib/api";
@@ -16,7 +16,9 @@ import {
 } from "../../lib/characters";
 import { useFlash } from "../../lib/flash";
 import { MODE_LABELS, useEnterMode } from "../../lib/mode";
+import { useFavouriteItems } from "../../lib/items";
 import { useFavouriteSpells } from "../../lib/spells";
+import { ItemReader } from "../items/ItemText";
 import { FavouriteStar, SpellReader } from "../spells/SpellText";
 
 /** Every character opens as its own tome. */
@@ -78,7 +80,7 @@ export function CharacterTome() {
         {!page && <MissingCharacterPage id={character.id} />}
         {page?.slug === "sheet" && <SheetPage detail={detail} />}
         {page?.slug === "spellbook" && <SpellbookPage sheet={sheet} characterId={detail.character.id} />}
-        {page?.slug === "inventory" && <InventoryPage sheet={sheet} />}
+        {page?.slug === "inventory" && <InventoryPage sheet={sheet} characterId={detail.character.id} />}
         {page?.slug === "features" && <FeaturesPage sheet={sheet} />}
         {page?.slug === "notes" && <NotesPage detail={detail} onSaved={replace} />}
         {page?.slug === "campaigns" && (
@@ -459,21 +461,32 @@ function SpellbookPage({ sheet, characterId }: { sheet: Sheet; characterId: numb
   );
 }
 
-function InventoryPage({ sheet }: { sheet: Sheet }) {
+function InventoryPage({ sheet, characterId }: { sheet: Sheet; characterId: number }) {
   const weight = sheet.inventory.reduce((sum, i) => sum + (i.weight ?? 0) * i.quantity, 0);
+  const [reading, setReading] = useState<string | null>(null);
+  const { isFavourite, toggle } = useFavouriteItems();
   return (
     <section aria-labelledby="page-title" data-testid="inventory">
       <PageHeading title="Inventory" />
-      <p>
-        <strong>Gold:</strong> <span data-testid="gold">{sheet.gold} gp</span> · <strong>Carrying:</strong> {weight} lb
-      </p>
+      <div className="row between wrap">
+        <p>
+          <strong>Gold:</strong> <span data-testid="gold">{sheet.gold} gp</span> · <strong>Carrying:</strong> {weight} lb
+        </p>
+        <Link to={`/play/characters/c/${characterId}/edit?section=equipment`} className="btn ghost small">
+          Change items
+        </Link>
+      </div>
       {sheet.inventory.length === 0 ? (
         <p className="muted">Nothing but the clothes on their back.</p>
       ) : (
         <div className="table-wrap">
+          <p className="muted small">Open an item to read it. Stars mark your favourite items.</p>
           <table>
             <thead>
               <tr>
+                <th scope="col">
+                  <span className="sr-only">Favourite</span>
+                </th>
                 <th scope="col">Item</th>
                 <th scope="col">Qty</th>
                 <th scope="col">Type</th>
@@ -482,9 +495,27 @@ function InventoryPage({ sheet }: { sheet: Sheet }) {
             </thead>
             <tbody>
               {sheet.inventory.map((i) => (
-                <tr key={i.index} data-testid="inventory-item">
+                <Fragment key={i.index}>
+                <tr data-testid="inventory-item" data-kind={i.kind}>
+                  <td className="star-cell">
+                    <FavouriteStar name={i.name} on={isFavourite(i.index)} onToggle={() => void toggle(i.index)} />
+                  </td>
                   <td>
-                    {i.name} {i.equipped && <span className="pill active">Equipped</span>}
+                    <button
+                      type="button"
+                      className="spell-name link-like"
+                      aria-expanded={reading === i.index}
+                      onClick={() => setReading((r) => (r === i.index ? null : i.index))}
+                    >
+                      {i.name}
+                    </button>{" "}
+                    {i.equipped && <span className="pill active">Equipped</span>}
+                    {i.added > 0 && (
+                      <span className="pill" title="Added from the items catalogue, on top of the starting equipment">
+                        {i.added === i.quantity ? "Added by you" : `${i.added} added by you`}
+                      </span>
+                    )}
+                    {i.attunement && <span className="pill">Attunement</span>}
                     {i.contents.length > 0 && (
                       <details className="pack-contents">
                         <summary>What's inside</summary>
@@ -493,9 +524,18 @@ function InventoryPage({ sheet }: { sheet: Sheet }) {
                     )}
                   </td>
                   <td>{i.quantity}</td>
-                  <td>{i.category}</td>
+                  <td>{i.rarity ? `${i.category}, ${i.rarity === "Varies" ? "rarity varies" : i.rarity.toLowerCase()}` : i.category}</td>
                   <td>{i.weight != null ? `${i.weight * i.quantity} lb` : "—"}</td>
                 </tr>
+                {reading === i.index && (
+                  <tr className="reader-row" data-testid="inventory-reader">
+                    <td />
+                    <td colSpan={4}>
+                      <ItemReader index={i.index} kind={i.kind} />
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               ))}
             </tbody>
           </table>

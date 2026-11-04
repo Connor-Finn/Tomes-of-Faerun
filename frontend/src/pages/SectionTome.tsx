@@ -8,6 +8,7 @@ import { MyCharacters } from "./characters/MyCharacters";
 import { Bestiary } from "./bestiary/Bestiary";
 import { Collections } from "./bestiary/Collections";
 import { Environments } from "./bestiary/Environments";
+import { Items } from "./items/Items";
 import { Spells } from "./spells/Spells";
 
 /**
@@ -21,6 +22,7 @@ const BUILT_PAGES: Record<string, ComponentType> = {
   "browse-tomes/bestiary": Bestiary,
   "browse-tomes/collections": Collections,
   "browse-tomes/environments": Environments,
+  "browse-tomes/items": Items,
 };
 
 /** One section of the app (e.g. Character Manager), shown as a tome. */

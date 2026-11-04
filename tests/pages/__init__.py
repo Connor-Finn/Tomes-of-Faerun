@@ -9,7 +9,8 @@ from .guild_hall_page import GuildHallPage, TomePage
 from .character_pages import BuilderPage, CharacterPage, CreateCharacterPage, MyCharactersPage
 from .bestiary_pages import BestiaryPage, CollectionPage, CollectionsPage, EnvironmentsPage, MonsterPage
 from .spell_pages import SpellPage, SpellsPage
+from .item_pages import ItemPage, ItemPicker, ItemsPage
 
 __all__ = ["LoginPage", "SignupPage", "GuildHallPage", "TomePage", "MyCharactersPage", "CreateCharacterPage",
            "CharacterPage", "BuilderPage", "BestiaryPage", "MonsterPage", "CollectionsPage", "CollectionPage",
-           "EnvironmentsPage", "SpellsPage", "SpellPage"]
+           "EnvironmentsPage", "SpellsPage", "SpellPage", "ItemsPage", "ItemPage", "ItemPicker"]

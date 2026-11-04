@@ -4,10 +4,8 @@
  * Spells come straight from the SRD data. The only thing a user stores is which spells they've
  * starred as favourites; which spells a character may learn is decided by the character rules engine.
  */
-import { useEffect, useState } from "react";
-import { api } from "./api";
-import { useAuth } from "./auth";
 import type { Option } from "./bestiary";
+import { createFavourites } from "./favourites";
 
 export interface SpellSummary {
   index: string;
@@ -92,61 +90,5 @@ export function componentsLine(s: Pick<Spell, "components" | "material">): strin
 }
 
 // ---------------------------------------------------------------- favourites
-// One shared list for the whole app, so a star clicked in the builder shows in the catalogue too.
-// It's kept per user, so logging in as someone else never shows the last person's stars.
-let favourites: Set<string> | null = null;
-let owner: number | null = null;
-let loading: Promise<void> | null = null;
-const listeners = new Set<() => void>();
-
-function publish(next: Set<string>) {
-  favourites = next;
-  listeners.forEach((l) => l());
-}
-
-function loadFavourites(userId: number): Promise<void> {
-  if (owner !== userId) {
-    favourites = null;
-    owner = userId;
-    loading = null;
-  }
-  loading ??= api.get<{ favourites: SpellSummary[] }>("/api/spells/favourites").then((res) => {
-    if (res.ok) publish(new Set(res.data.favourites.map((s) => s.index)));
-    loading = null;
-  });
-  return loading;
-}
-
 /** Your favourite spells, and a function to star or unstar one. */
-export function useFavouriteSpells() {
-  const { user } = useAuth();
-  const userId = user?.id ?? null;
-  const [, rerender] = useState(0);
-  useEffect(() => {
-    const listener = () => rerender((n) => n + 1);
-    listeners.add(listener);
-    if (userId !== null && (!favourites || owner !== userId)) void loadFavourites(userId);
-    return () => {
-      listeners.delete(listener);
-    };
-  }, [userId]);
-
-  async function toggle(index: string): Promise<{ ok: boolean; message?: string; error?: string }> {
-    const current = favourites ?? new Set<string>();
-    const on = !current.has(index);
-    const next = new Set(current);
-    if (on) next.add(index);
-    else next.delete(index);
-    publish(next); // star straight away; put it back if the server says no
-    const url = `/api/spells/favourites/${encodeURIComponent(index)}`;
-    const res = on ? await api.put<{ message: string }>(url) : await api.delete<{ message: string }>(url);
-    if (!res.ok) {
-      publish(current);
-      return { ok: false, error: res.data.error ?? "Couldn't change your favourites." };
-    }
-    return { ok: true, message: res.data.message };
-  }
-
-  const mine = owner === userId ? favourites : null;
-  return { favourites: mine, isFavourite: (index: string) => Boolean(mine?.has(index)), toggle };
-}
+export const useFavouriteSpells = createFavourites("/api/spells");

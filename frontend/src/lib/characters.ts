@@ -23,6 +23,8 @@ export interface Build {
   ability_scores?: { method?: string; base?: Partial<Record<Ability, number>> } | null;
   choices?: Record<string, string[]>;
   equipped?: { armor?: string | null; shield?: string | null } | null;
+  /** Items added from the catalogue on top of the starting kit: index -> quantity. */
+  items?: Record<string, number>;
   notes?: Partial<Record<NoteField, string>>;
 }
 
@@ -123,9 +125,14 @@ export interface Sheet {
     index: string;
     name: string;
     quantity: number;
+    kind: "equipment" | "magic";
     category: string;
     weight: number | null;
     equipped: boolean;
+    /** How many of these the player added from the catalogue (the rest came with the starting kit). */
+    added: number;
+    rarity: string | null;
+    attunement: boolean | null;
     contents: { name: string; quantity: number }[];
   }[];
   gold: number;

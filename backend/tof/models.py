@@ -50,6 +50,7 @@ class User(db.Model):
     monster_collections: Mapped[list[MonsterCollection]] = relationship(cascade="all, delete-orphan")
     environments: Mapped[list[Environment]] = relationship(cascade="all, delete-orphan")
     favourite_spells: Mapped[list[FavouriteSpell]] = relationship(cascade="all, delete-orphan")
+    favourite_items: Mapped[list[FavouriteItem]] = relationship(cascade="all, delete-orphan")
 
     @property
     def is_admin(self) -> bool:
@@ -206,4 +207,15 @@ class FavouriteSpell(db.Model):
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     spell: Mapped[str] = mapped_column(String(80))
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
+
+
+class FavouriteItem(db.Model):
+    """An item (equipment or magic item) a user has starred, stored by its rules `index` ("bag-of-holding")."""
+    __tablename__ = "favourite_items"
+    __table_args__ = (UniqueConstraint("user_id", "item"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    item: Mapped[str] = mapped_column(String(80))
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
