@@ -228,3 +228,23 @@ def test_check_endpoint_is_what_the_builder_uses(logged_in_page: Page):
     slot = next(s for s in response.json()["slots"] if s["id"] == "spells:cantrips")
     denied = {o["label"] for o in slot["options"] if o.get("denied")}
     assert "Sacred Flame" in denied and "Fire Bolt" not in denied
+
+
+def test_switching_class_drops_the_old_class_skill_picks(logged_in_page: Page):
+    """Regression: every class's skill choice is the same slot, so a Rogue's Insight used to stay
+    hidden in the Barbarian's skills ("2 chosen" with one visible) and block the character."""
+    b = BuilderPage(logged_in_page).open_new("standard")
+    b.go_to("Class").choose_card("rogue")
+    b.pick("class:proficiency-0", "Insight", "Stealth")
+    expect(b.slot("class:proficiency-0").get_by_test_id("slot-count")).to_contain_text("2 chosen")
+
+    b.choose_card("barbarian")
+    skills = b.slot("class:proficiency-0")
+    expect(skills.get_by_test_id("slot-count")).to_contain_text("0 chosen")
+    expect(skills.get_by_test_id("slot-error")).to_have_count(0)
+    expect(skills.get_by_test_id("unavailable-pick")).to_have_count(0)
+
+    b.pick("class:proficiency-0", "Athletics", "Perception")
+    expect(skills.get_by_test_id("slot-count")).to_contain_text("2 chosen")
+    expect(skills.get_by_test_id("slot-error")).to_have_count(0)
+    expect(b.errors).to_have_count(0)

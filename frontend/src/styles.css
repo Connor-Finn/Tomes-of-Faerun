@@ -567,6 +567,7 @@ form[role=search] { display: flex; max-width: 520px; }
 }
 .chip:hover { background: rgba(255, 250, 236, 0.85); }
 .chip.on { color: #fbecd0; background: var(--wax); border-color: var(--wax-dark); }
+.chip.unavailable { background: var(--wax-dark); border-style: dashed; }
 .chip.denied { color: var(--ink-muted); text-decoration: line-through; text-decoration-color: rgba(143, 42, 32, 0.6); background: transparent; border-style: dashed; }
 .help { position: absolute; top: -0.2rem; right: 0.6rem; display: flex; flex-direction: column; align-items: flex-end; }
 .field > .help, .stack > .help { position: static; align-items: flex-start; }
