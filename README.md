@@ -15,6 +15,7 @@ that run on every push.
 |---------------------------------|--------------|
 | Accounts (sign-up, email verification, login, lockout, password reset, profile, avatar, admin) | ✅ Done |
 | Rules data API (SRD spells, monsters, classes, races, equipment, magic items) | ✅ Done |
+| Guild Hall hub, Player / Dungeon Master modes, tome layout | ✅ Done |
 | Character builder and sheets    | 🛠 Planned   |
 | Bestiary                        | 🛠 Planned   |
 | Spell catalogue and spellbooks  | 🛠 Planned   |
@@ -35,6 +36,19 @@ backend/     Flask API (one blueprint per area: auth, account, admin, rules, dev
 frontend/    React app (pages, components, API client)
 tests/       Playwright tests and page objects
 ```
+
+## How the app is laid out
+
+After logging in you arrive at **the Guild Hall**. Pick **Player Mode** or **Dungeon Master Mode**, then take a tome
+off the shelf. Each section is a tome: a table of contents on the left page and the open chapter on the right.
+
+| Mode | Tomes |
+|------|-------|
+| Player | Campaigns, Character Manager, Solo Adventure (sealed for now) |
+| Dungeon Master | Campaigns, Browse Tomes, Create Solo Adventure and Create Homebrew (both sealed for now) |
+
+Every section, chapter and route is generated from one list in `frontend/src/lib/sections.tsx`. Chapters that aren't
+built yet show what's planned for them.
 
 ## Run it locally
 
@@ -95,7 +109,8 @@ When a test fails, a screenshot and trace are saved in `test-results/`, and CI u
   and safe to run in parallel
 - **Storage state**: the admin logs in once per run and every admin test reuses that session
 - **Waiting on network**: `page.expect_response(...)` for actions in a single-page app that don't reload the page
-- **Data-driven tests** with `pytest.mark.parametrize` for form validation
+- **Data-driven tests** with `pytest.mark.parametrize` for form validation and for every section of the app
+- **Keyboard and mobile checks**: the mode switch works with arrow keys, and pages never scroll sideways at phone width
 - **API tests** with Playwright's `APIRequestContext`, including security checks (CSRF header, open redirects,
   no password hashes in responses)
 - **Multiple browser contexts** in one test (an admin bans a user who then can't log in)

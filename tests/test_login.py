@@ -9,7 +9,7 @@ from pages import LoginPage
 
 def test_login_success(page: Page, user):
     LoginPage(page).open().login(user["email"], user["password"])
-    expect(page).to_have_url(re.compile(r"/dashboard$"))
+    expect(page).to_have_url(re.compile(r"/guild-hall$"))
     expect(page.get_by_test_id("flash-success")).to_have_text(f"Welcome back, {user['name']}!")
     expect(page.get_by_test_id("user-menu-button")).to_contain_text(user["name"])
 
@@ -59,9 +59,9 @@ def test_unverified_seed_user_cannot_log_in(page: Page):
     expect(page.get_by_role("button", name="Resend verification email")).to_be_visible()
 
 
-def test_logged_in_user_is_sent_from_login_to_dashboard(logged_in_page: Page):
+def test_logged_in_user_is_sent_from_login_to_guild_hall(logged_in_page: Page):
     logged_in_page.goto("/login")
-    expect(logged_in_page).to_have_url(re.compile(r"/dashboard$"))
+    expect(logged_in_page).to_have_url(re.compile(r"/guild-hall$"))
 
 
 def test_session_survives_a_page_reload(logged_in_page: Page, user):
@@ -79,7 +79,7 @@ def test_logout(logged_in_page: Page):
 
     # The session is really gone: protected pages bounce back to login,
     # even after a full page load.
-    page.goto("/dashboard")
+    page.goto("/guild-hall")
     expect(page).to_have_url(re.compile(r"/login\?next="))
 
 
@@ -95,19 +95,19 @@ def test_protected_page_redirects_to_login_then_back(page: Page, user):
 def test_open_redirect_is_blocked(page: Page, user):
     """Security check: ?next= must not send users to another website."""
     LoginPage(page).open(next_path="https://evil.example.com").login(user["email"], user["password"])
-    expect(page).to_have_url(re.compile(r"/dashboard$"))
+    expect(page).to_have_url(re.compile(r"/guild-hall$"))
 
 
 def test_remember_me_sets_persistent_cookie(page: Page, user):
     LoginPage(page).open().login(user["email"], user["password"], remember=True)
-    expect(page).to_have_url(re.compile(r"/dashboard$"))
+    expect(page).to_have_url(re.compile(r"/guild-hall$"))
     session_cookie = next(c for c in page.context.cookies() if c["name"] == "session")
     assert session_cookie["expires"] > time.time() + 29 * 24 * 3600  # ~30 days
 
 
 def test_without_remember_me_cookie_is_session_only(page: Page, user):
     LoginPage(page).open().login(user["email"], user["password"])
-    expect(page).to_have_url(re.compile(r"/dashboard$"))
+    expect(page).to_have_url(re.compile(r"/guild-hall$"))
     session_cookie = next(c for c in page.context.cookies() if c["name"] == "session")
     assert session_cookie["expires"] == -1  # deleted when the browser closes
 
@@ -130,7 +130,7 @@ def test_password_reset_flow(page: Page, api: APIRequestContext, user):
     expect(page.get_by_test_id("flash-success")).to_contain_text("Your password has been reset")
 
     login.login(user["email"], "BrandNew1!")
-    expect(page).to_have_url(re.compile(r"/dashboard$"))
+    expect(page).to_have_url(re.compile(r"/guild-hall$"))
 
     # The reset link only works once.
     page.goto(email["link"])

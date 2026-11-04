@@ -101,7 +101,7 @@ def test_change_password(logged_in_page: Page, user):
     login = LoginPage(page).open().login(user["email"], user["password"])
     expect(login.error).to_have_text("Invalid email or password.")
     login.login(user["email"], "Changed456!")
-    expect(page).to_have_url(re.compile(r"/dashboard$"))
+    expect(page).to_have_url(re.compile(r"/guild-hall$"))
 
 
 def test_change_password_wrong_current(logged_in_page: Page):
@@ -141,5 +141,5 @@ def test_cancel_delete_keeps_account(logged_in_page: Page):
     dialog = page.get_by_role("dialog")
     dialog.get_by_role("button", name="Cancel").click()
     expect(dialog).to_be_hidden()
-    page.goto("/dashboard")
-    expect(page).to_have_url(re.compile(r"/dashboard$"))
+    page.goto("/guild-hall")
+    expect(page).to_have_url(re.compile(r"/guild-hall$"))

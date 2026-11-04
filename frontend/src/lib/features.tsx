@@ -9,7 +9,7 @@ export interface Feature {
   status: "live" | "soon";
 }
 
-/** The product roadmap, shown on the home page and dashboard. */
+/** The product roadmap, shown on the home page. */
 export const FEATURES: Feature[] = [
   { key: "characters", title: "Character builder", icon: <ShieldIcon />, status: "soon",
     blurb: "Roll stats, pick a race, class and background, and get a full character sheet." },

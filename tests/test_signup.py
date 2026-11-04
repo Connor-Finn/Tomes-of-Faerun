@@ -26,7 +26,7 @@ def test_signup_verify_email_and_login(page: Page):
 
     expect(page.get_by_test_id("flash-success")).to_have_text("Your email has been verified. You can now log in.")
     LoginPage(page).login(email, "Str0ng!Pass")
-    expect(page.get_by_role("heading", name="Welcome, Jane Tester")).to_be_visible()
+    expect(page.get_by_role("heading", name="The Guild Hall", level=1)).to_be_visible()
 
 
 def test_unverified_signup_cannot_log_in(page: Page):

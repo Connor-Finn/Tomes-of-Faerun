@@ -32,7 +32,7 @@ export function Login() {
     }
     setUser(res.data.user);
     flash("success", `Welcome back, ${res.data.user.name}!`, { afterNavigate: true });
-    navigate(safeNext(params.get("next")) ?? "/dashboard");
+    navigate(safeNext(params.get("next")) ?? "/guild-hall");
   }
 
   async function resend() {
