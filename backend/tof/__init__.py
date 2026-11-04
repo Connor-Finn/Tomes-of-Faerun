@@ -11,6 +11,8 @@ The app is split into blueprints, one per area of the product:
     bestiary the DM's monster collections and environments
     spells   the spell catalogue and each user's favourite spells
     items    the items catalogue (equipment and magic items) and each user's favourite items
+    parties  the parties a DM leads: invitations, members
+    campaigns  campaigns, session logs, encounters, and the characters players bring (instances)
     spa      serves the built React app for every non-API URL
 """
 from __future__ import annotations
@@ -33,7 +35,7 @@ def create_app(overrides: dict | None = None) -> Flask:
     Path(app.config["UPLOAD_FOLDER"]).mkdir(parents=True, exist_ok=True)
     db.init_app(app)
 
-    from . import account, admin, auth, bestiary, dev, items, spa, spells
+    from . import account, admin, auth, bestiary, campaigns, dev, items, parties, spa, spells
     from .characters import api as characters_api
     from .rules import api as rules_api
     from .security import load_current_user, require_csrf_header
@@ -50,6 +52,8 @@ def create_app(overrides: dict | None = None) -> Flask:
     app.register_blueprint(bestiary.bp)
     app.register_blueprint(spells.bp)
     app.register_blueprint(items.bp)
+    app.register_blueprint(parties.bp)
+    app.register_blueprint(campaigns.bp)
     app.register_blueprint(spa.bp)  # last: it catches every other URL
 
     @app.get("/api/health")

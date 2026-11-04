@@ -56,8 +56,8 @@ export const SECTIONS: SectionDef[] = [
         summary: "Every campaign you're playing in, with the character you brought to each one.",
         plans: [
           "See each campaign's party, Dungeon Master and story so far.",
-          "Open your character as it stands in that campaign, with any notes your DM left on it.",
-          "Level up, or follow one of your character's level roadmaps.",
+          "Bring a character: it plays as its own copy, with any notes your DM left on it.",
+          "Track hit points and level up in the campaign.",
         ],
       },
       {
@@ -65,9 +65,8 @@ export const SECTIONS: SectionDef[] = [
         title: "Parties",
         summary: "The adventuring parties you belong to.",
         plans: [
-          "Accept invitations or ask to join a public party.",
-          "Chat with your party on enchanted parchment.",
-          "Find other adventurers and send friend requests.",
+          "Accept or decline invitations from Dungeon Masters.",
+          "Later: chat with your party on enchanted parchment, and find public parties to join.",
         ],
       },
     ],
@@ -158,7 +157,10 @@ export const SECTIONS: SectionDef[] = [
         slug: "requests",
         title: "Join requests",
         summary: "Adventurers asking to join one of your parties.",
-        plans: ["Accept or decline each request.", "Get notified when a new request arrives."],
+        plans: [
+          "Coming with the online features: players will find public parties and ask to join.",
+          "Accept or decline each request, and get notified when a new one arrives.",
+        ],
       },
     ],
   },
@@ -198,7 +200,7 @@ export const SECTIONS: SectionDef[] = [
         plans: [
           "Tag each monster as a minion, an elite or the boss, and say how many there are.",
           "See the total XP of everything in a collection.",
-          "Later: add collections to a campaign's encounters.",
+          "Add collections to a campaign's encounters.",
         ],
       },
       {

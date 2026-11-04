@@ -16,6 +16,7 @@ import {
 } from "../../lib/characters";
 import { useFlash } from "../../lib/flash";
 import { MODE_LABELS, useEnterMode } from "../../lib/mode";
+import { playerCampaignPath, type InstanceDetail } from "../../lib/campaigns";
 import { ItemPicker } from "../items/ItemPicker";
 import { AbilityScores, Help, SlotView, type AbilityScoresValue } from "./builderParts";
 
@@ -117,9 +118,13 @@ function useLiveCheck(build: Build | null, mode: BuildMode) {
 }
 
 export function Builder() {
-  const { id } = useParams();
+  const { id, campaignId } = useParams();
   const [params] = useSearchParams();
-  const editing = id !== undefined;
+  // In a campaign the builder edits the player's instance there, never the base character.
+  const inCampaign = campaignId !== undefined;
+  const editing = id !== undefined || inCampaign;
+  const loadUrl = inCampaign ? `/api/campaigns/${campaignId}/instance` : `/api/characters/${id}`;
+  const [campaignName, setCampaignName] = useState("");
   useEnterMode("player");
   const options = useCharacterOptions();
   const { flash } = useFlash();
@@ -131,7 +136,7 @@ export function Builder() {
   const [loadError, setLoadError] = useState<string | null>(null);
   // ?section=spells opens the builder on that page, e.g. from a character's spellbook
   const asked = params.get("section") as SectionKey | null;
-  const startSection = (m: BuildMode): SectionKey => (asked && asked in SECTION_TITLES ? asked : m === "easy" ? "class" : "basics");
+  const startSection = (m: BuildMode): SectionKey => (asked && asked in SECTION_TITLES ? asked : m === "easy" && !inCampaign ? "class" : "basics");
   const [section, setSection] = useState<SectionKey>(startSection(mode));
   const [saving, setSaving] = useState(false);
   const [saveErrors, setSaveErrors] = useState<Problem[]>([]);
@@ -140,18 +145,20 @@ export function Builder() {
 
   useEffect(() => {
     if (!editing) return;
-    void api.get<CharacterDetail>(`/api/characters/${id}`).then((res) => {
+    void api.get<CharacterDetail & { instance?: InstanceDetail["instance"] }>(loadUrl).then((res) => {
       if (!res.ok) {
         setLoadError(res.status === 404 ? "Character not found." : res.data.error ?? "Couldn't open the character.");
         return;
       }
-      setBuild(res.data.character.build);
-      setMode(res.data.character.build_mode);
-      setName(res.data.character.name);
-      setStartLevel(res.data.character.level);
-      setSection(startSection(res.data.character.build_mode));
+      const c = res.data.instance ?? res.data.character;
+      setBuild(c.build);
+      setMode(c.build_mode);
+      setName(c.name);
+      setStartLevel(c.level);
+      setSection(startSection(c.build_mode));
+      if (res.data.instance) setCampaignName(res.data.instance.campaign.name);
     });
-  }, [editing, id]);
+  }, [editing, loadUrl]);
 
   const hasSpells = Boolean(result?.slots.some((s) => s.group === "spells"));
   const order = (mode === "easy" ? EASY_ORDER : STANDARD_ORDER).filter((s) => s !== "spells" || hasSpells || mode === "standard");
@@ -164,12 +171,21 @@ export function Builder() {
     return out;
   }, [result]);
 
-  const trail = [
-    { label: "Guild Hall", to: "/guild-hall" },
-    { label: MODE_LABELS.player, to: "/guild-hall" },
-    { label: "Character Manager", to: "/play/characters/my-characters" },
-    ...(editing ? [{ label: name, to: characterPath(Number(id)) }, { label: "Builder" }] : [{ label: "New character" }]),
-  ];
+  const doneUrl = inCampaign ? playerCampaignPath(Number(campaignId), "character") : null;
+  const trail = inCampaign
+    ? [
+        { label: "Guild Hall", to: "/guild-hall" },
+        { label: MODE_LABELS.player, to: "/guild-hall" },
+        { label: "Campaigns", to: "/play/campaigns/current" },
+        { label: campaignName || "Campaign", to: doneUrl! },
+        { label: "Level up" },
+      ]
+    : [
+        { label: "Guild Hall", to: "/guild-hall" },
+        { label: MODE_LABELS.player, to: "/guild-hall" },
+        { label: "Character Manager", to: "/play/characters/my-characters" },
+        ...(editing ? [{ label: name, to: characterPath(Number(id)) }, { label: "Builder" }] : [{ label: "New character" }]),
+      ];
 
   if (loadError) {
     return (
@@ -199,6 +215,20 @@ export function Builder() {
     if (!build) return;
     setSaving(true);
     const body = { build: forCheck(build), build_mode: mode };
+    if (inCampaign) {
+      const res = await api.patch<InstanceDetail>(loadUrl, body);
+      setSaving(false);
+      if (!res.ok) {
+        const problems = (res.data as unknown as { errors?: Problem[] }).errors;
+        setSaveErrors(problems ?? [{ field: "build", message: res.data.error ?? "The character wasn't saved." }]);
+        return;
+      }
+      flash("success", `${res.data.instance.name} is now level ${res.data.instance.level} in ${campaignName}.`, {
+        afterNavigate: true,
+      });
+      navigate(doneUrl!);
+      return;
+    }
     const res = editing
       ? await api.patch<CharacterDetail>(`/api/characters/${id}`, body)
       : await api.post<CharacterDetail>("/api/characters", body);
@@ -220,7 +250,7 @@ export function Builder() {
   const index = order.indexOf(section);
   const errorsHere = result?.errors.filter((e) => sectionOf(e.field) === section) ?? [];
   const slotsHere = (result?.slots ?? []).filter((s) => sectionOf(s.id) === section);
-  const pageProps: PageProps = { build, options, result, mode, update, setChoice, slots: slotsHere, maxLevel: mode === "easy" ? Math.max(options.easy_max_level, startLevel) : options.max_level };
+  const pageProps: PageProps = { build, options, result, mode, update, setChoice, slots: slotsHere, maxLevel: mode === "easy" && !inCampaign ? Math.max(options.easy_max_level, startLevel) : options.max_level, inCampaign };
 
   return (
     <>
@@ -229,7 +259,12 @@ export function Builder() {
         <header className="builder-header">
           <div>
             <p className="tome-eyebrow">{BUILD_MODE_LABELS[mode]}</p>
-            <h1>{editing ? `Editing ${name}` : "A new character"}</h1>
+            <h1>{inCampaign ? `Levelling up ${name}` : editing ? `Editing ${name}` : "A new character"}</h1>
+            {inCampaign && (
+              <p className="muted" data-testid="campaign-builder-note">
+                Changes here only apply to {name} in {campaignName}. Your character in the Character Manager stays as it is.
+              </p>
+            )}
             <p className="muted">
               {mode === "easy"
                 ? "One step at a time. Only the choices your character can take are shown, and help is open on every step."
@@ -348,6 +383,8 @@ interface PageProps {
   mode: BuildMode;
   slots: Slot[];
   maxLevel: number;
+  /** True when levelling a character inside a campaign, rather than creating one. */
+  inCampaign?: boolean;
   update: (patch: Partial<Build>) => void;
   setChoice: (slotId: string, values: string[]) => void;
 }
@@ -390,7 +427,7 @@ function CardChoice({
   );
 }
 
-function BasicsPage({ build, options, mode, update, maxLevel }: PageProps) {
+function BasicsPage({ build, options, mode, update, maxLevel, inCampaign }: PageProps) {
   return (
     <div className="stack">
       <div className="field">
@@ -398,7 +435,7 @@ function BasicsPage({ build, options, mode, update, maxLevel }: PageProps) {
         <input id="character-name" value={build.name ?? ""} maxLength={60} onChange={(e) => update({ name: e.target.value })} />
       </div>
       <div className="field">
-        <label htmlFor="character-level">Starting level</label>
+        <label htmlFor="character-level">{inCampaign ? "Level" : "Starting level"}</label>
         <select id="character-level" value={build.level ?? 1} onChange={(e) => update({ level: Number(e.target.value) })}>
           {Array.from({ length: maxLevel }, (_, i) => i + 1).map((l) => (
             <option key={l} value={l}>
@@ -409,7 +446,9 @@ function BasicsPage({ build, options, mode, update, maxLevel }: PageProps) {
         <Help
           mode={mode}
           text={
-            mode === "easy"
+            inCampaign
+              ? "Raise the level to level up. Each new level adds hit points and features; any new choices it brings show up in the other tabs, marked with a number."
+              : mode === "easy"
               ? `Easy build creates characters up to level ${options.easy_max_level}, so you don't face every level's choices at once. Your character can still reach level 20 later.`
               : "The level your character starts at. Each level adds hit points and new features, and some add choices."
           }

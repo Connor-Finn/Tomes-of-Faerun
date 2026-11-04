@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 from sqlalchemy import ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -51,6 +51,10 @@ class User(db.Model):
     environments: Mapped[list[Environment]] = relationship(cascade="all, delete-orphan")
     favourite_spells: Mapped[list[FavouriteSpell]] = relationship(cascade="all, delete-orphan")
     favourite_items: Mapped[list[FavouriteItem]] = relationship(cascade="all, delete-orphan")
+    campaigns: Mapped[list[Campaign]] = relationship(back_populates="dm", cascade="all, delete-orphan")
+    parties: Mapped[list[Party]] = relationship(back_populates="dm", cascade="all, delete-orphan")
+    memberships: Mapped[list[PartyMember]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    instances: Mapped[list[CharacterInstance]] = relationship(back_populates="user", cascade="all, delete-orphan")
 
     @property
     def is_admin(self) -> bool:
@@ -130,6 +134,8 @@ class Character(db.Model):
     updated_at: Mapped[datetime] = mapped_column(default=utcnow, onupdate=utcnow)
 
     user: Mapped[User] = relationship(back_populates="characters")
+    # Deleting a character keeps its campaign instances: they just lose the link back here.
+    instances: Mapped[list[CharacterInstance]] = relationship(back_populates="character")
 
     def to_dict(self) -> dict:
         from .characters.engine import name_of
@@ -169,6 +175,8 @@ class MonsterCollection(db.Model):
 
     entries: Mapped[list[CollectionEntry]] = relationship(
         back_populates="collection", cascade="all, delete-orphan", order_by="CollectionEntry.id")
+    campaign_links: Mapped[list[CampaignEncounter]] = relationship(
+        back_populates="collection", cascade="all, delete-orphan")
 
 
 class CollectionEntry(db.Model):
@@ -219,3 +227,125 @@ class FavouriteItem(db.Model):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     item: Mapped[str] = mapped_column(String(80))
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
+
+
+class Campaign(db.Model):
+    """A campaign a Dungeon Master runs. It can exist without a party.
+
+    Pages (see campaigns.py): overview, party, session log, encounters and the DM's private notes.
+    """
+    __tablename__ = "campaigns"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    dm_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(80))
+    description: Mapped[str] = mapped_column(String(4000), default="")
+    status: Mapped[str] = mapped_column(String(20), default="planning")
+    dm_notes: Mapped[str] = mapped_column(String(10000), default="")
+    party_id: Mapped[int | None] = mapped_column(ForeignKey("parties.id", ondelete="SET NULL"), index=True)
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(default=utcnow, onupdate=utcnow)
+
+    dm: Mapped[User] = relationship(back_populates="campaigns")
+    sessions: Mapped[list[SessionEntry]] = relationship(
+        back_populates="campaign", cascade="all, delete-orphan",
+        order_by="(SessionEntry.played_on.desc(), SessionEntry.id.desc())")
+    encounters: Mapped[list[CampaignEncounter]] = relationship(
+        back_populates="campaign", cascade="all, delete-orphan", order_by="CampaignEncounter.id")
+    party: Mapped[Party | None] = relationship(back_populates="campaigns")
+    instances: Mapped[list[CharacterInstance]] = relationship(
+        back_populates="campaign", cascade="all, delete-orphan", order_by="CharacterInstance.id")
+
+
+class SessionEntry(db.Model):
+    """One entry in a campaign's session log: what happened at the table on a given day."""
+    __tablename__ = "campaign_sessions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    campaign_id: Mapped[int] = mapped_column(ForeignKey("campaigns.id", ondelete="CASCADE"), index=True)
+    played_on: Mapped[date]
+    title: Mapped[str] = mapped_column(String(100))
+    summary: Mapped[str] = mapped_column(String(5000), default="")
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
+
+    campaign: Mapped[Campaign] = relationship(back_populates="sessions")
+
+
+class CampaignEncounter(db.Model):
+    """A bestiary collection the DM attached to a campaign, such as "Warlock boss dungeon"."""
+    __tablename__ = "campaign_encounters"
+    __table_args__ = (UniqueConstraint("campaign_id", "collection_id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    campaign_id: Mapped[int] = mapped_column(ForeignKey("campaigns.id", ondelete="CASCADE"), index=True)
+    collection_id: Mapped[int] = mapped_column(ForeignKey("monster_collections.id", ondelete="CASCADE"), index=True)
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
+
+    campaign: Mapped[Campaign] = relationship(back_populates="encounters")
+    collection: Mapped[MonsterCollection] = relationship(back_populates="campaign_links")
+
+
+class Party(db.Model):
+    """A group of players a Dungeon Master leads. Only DMs create parties.
+
+    The DM invites players by email; an invited player accepts or declines. The DM then attaches
+    the party to one or more campaigns, and its members can bring a character to each.
+    """
+    __tablename__ = "parties"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    dm_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(60))
+    description: Mapped[str] = mapped_column(String(1000), default="")
+    visibility: Mapped[str] = mapped_column(String(10), default="private")
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
+
+    dm: Mapped[User] = relationship(back_populates="parties")
+    members: Mapped[list[PartyMember]] = relationship(
+        back_populates="party", cascade="all, delete-orphan", order_by="PartyMember.id")
+    campaigns: Mapped[list[Campaign]] = relationship(back_populates="party", order_by="Campaign.name")
+
+
+class PartyMember(db.Model):
+    """A player in a party, or invited to one (status "invited" until they accept)."""
+    __tablename__ = "party_members"
+    __table_args__ = (UniqueConstraint("party_id", "user_id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    party_id: Mapped[int] = mapped_column(ForeignKey("parties.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    status: Mapped[str] = mapped_column(String(10), default="invited")
+    invited_at: Mapped[datetime] = mapped_column(default=utcnow)
+    joined_at: Mapped[datetime | None]
+
+    party: Mapped[Party] = relationship(back_populates="members")
+    user: Mapped[User] = relationship(back_populates="memberships")
+
+
+class CharacterInstance(db.Model):
+    """A player's character as it stands in one campaign.
+
+    Joining a campaign copies the base character's build. From then on the instance levels up,
+    takes damage and picks up items on its own; the base character in the Character Manager never
+    changes. The DM can read the sheet and leave a note the player sees.
+    """
+    __tablename__ = "character_instances"
+    __table_args__ = (UniqueConstraint("campaign_id", "user_id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    campaign_id: Mapped[int] = mapped_column(ForeignKey("campaigns.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    character_id: Mapped[int | None] = mapped_column(ForeignKey("characters.id", ondelete="SET NULL"), index=True)
+    name: Mapped[str] = mapped_column(String(60))
+    build: Mapped[dict] = mapped_column(db.JSON)
+    build_mode: Mapped[str] = mapped_column(String(10), default="standard")
+    is_complete: Mapped[bool] = mapped_column(default=True)
+    current_hp: Mapped[int | None]
+    temp_hp: Mapped[int] = mapped_column(default=0)
+    dm_note: Mapped[str] = mapped_column(String(2000), default="")
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(default=utcnow, onupdate=utcnow)
+
+    campaign: Mapped[Campaign] = relationship(back_populates="instances")
+    user: Mapped[User] = relationship(back_populates="instances")
+    character: Mapped[Character | None] = relationship(back_populates="instances")

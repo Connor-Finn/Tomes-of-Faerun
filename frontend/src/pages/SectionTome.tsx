@@ -10,6 +10,8 @@ import { Collections } from "./bestiary/Collections";
 import { Environments } from "./bestiary/Environments";
 import { Items } from "./items/Items";
 import { Spells } from "./spells/Spells";
+import { DmCampaigns, PlayerCampaigns } from "./campaigns/CampaignLists";
+import { DmParties, PlayerParties } from "./campaigns/Parties";
 
 /**
  * Pages that are built, by "section key/page slug". Every other page shows its plans.
@@ -23,6 +25,10 @@ const BUILT_PAGES: Record<string, ComponentType> = {
   "browse-tomes/collections": Collections,
   "browse-tomes/environments": Environments,
   "browse-tomes/items": Items,
+  "player-campaigns/current": PlayerCampaigns,
+  "player-campaigns/parties": PlayerParties,
+  "dm-campaigns/campaigns": DmCampaigns,
+  "dm-campaigns/parties": DmParties,
 };
 
 /** One section of the app (e.g. Character Manager), shown as a tome. */
