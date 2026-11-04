@@ -9,6 +9,7 @@ backend/instance/
 # Node
 node_modules/
 frontend/dist/
+*.tsbuildinfo
 
 # Playwright
 test-results/
