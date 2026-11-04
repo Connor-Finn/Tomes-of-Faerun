@@ -16,7 +16,8 @@ that run on every push.
 | Accounts (sign-up, email verification, login, lockout, password reset, profile, avatar, admin) | ✅ Done |
 | Rules data API (SRD spells, monsters, classes, races, equipment, magic items) | ✅ Done |
 | Guild Hall hub, Player / Dungeon Master modes, tome layout | ✅ Done |
-| Character builder and sheets    | 🛠 Planned   |
+| Character rules engine and API (every SRD rule checked on the server) | ✅ Done |
+| Character builder and sheets    | 🛠 In progress |
 | Bestiary                        | 🛠 Planned   |
 | Spell catalogue and spellbooks  | 🛠 Planned   |
 | Items and equipment             | 🛠 Planned   |
@@ -111,6 +112,8 @@ When a test fails, a screenshot and trace are saved in `test-results/`, and CI u
 - **Waiting on network**: `page.expect_response(...)` for actions in a single-page app that don't reload the page
 - **Data-driven tests** with `pytest.mark.parametrize` for form validation and for every section of the app
 - **Keyboard and mobile checks**: the mode switch works with arrow keys, and pages never scroll sideways at phone width
+- **Rules tests without a browser**: `test_character_rules.py` checks one D&D rule per test against the engine
+  directly, and a helper finishes builds for every class at levels 1 and 20 to prove each can be completed
 - **API tests** with Playwright's `APIRequestContext`, including security checks (CSRF header, open redirects,
   no password hashes in responses)
 - **Multiple browser contexts** in one test (an admin bans a user who then can't log in)
@@ -130,6 +133,29 @@ Refresh it with `python backend/scripts/sync_rules.py`.
 Catalogue filters: spells take `level`, `school`, `class`, `ritual`, `concentration` and `sort=level`. Monsters take
 `type`, `size`, `cr_min`, `cr_max` and `sort=cr`. Equipment takes `category`. Magic items take `rarity`, `category` and
 `include_variants`. Add `facets=1` to get the filter options, and `order=desc` to reverse the sort.
+
+## Characters
+
+A character is stored as its **build**: only the player's decisions (race, class, level, ability scores and one list
+of picks per choice). The rules engine in `backend/tof/characters/engine.py` works out everything else (hit points,
+armour class, skills, attacks, spell slots) from the build and the SRD data on every read, so a sheet can't drift
+out of step with the rules.
+
+The engine also lists every choice a build still has to make, with its options and the reason any option is
+denied (*"You're already proficient (Acolyte)"*, *"You can't cast level 2 spells yet"*). The builder shows those
+answers instead of re-implementing the rules: Easy build hides denied options and Standard build shows them,
+but either way the server refuses an illegal pick. A legal but unfinished build saves as a draft.
+
+House rules for now: ability scores by standard array or point buy, hit points take the fixed average after level 1,
+starting equipment comes from the class and background, and no multiclassing.
+
+| Endpoint | What it does |
+|----------|--------------|
+| `GET /api/characters/options` | Races, classes, backgrounds and alignments for the builder's first choices |
+| `GET /api/characters/templates` | Premade characters to start from (`backend/tof/premades/`) |
+| `POST /api/characters/check` | Check a build without saving it: open choices, errors and the sheet |
+| `GET` / `POST /api/characters` | Your characters / create one from a build or a template |
+| `GET` / `PATCH` / `DELETE /api/characters/<id>` | One character with its sheet; change it; delete it |
 
 ## Security notes
 

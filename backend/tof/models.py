@@ -46,6 +46,7 @@ class User(db.Model):
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
 
     tokens: Mapped[list[Token]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    characters: Mapped[list[Character]] = relationship(back_populates="user", cascade="all, delete-orphan")
 
     @property
     def is_admin(self) -> bool:
@@ -103,4 +104,45 @@ class Email(db.Model):
             "body": self.body,
             "link": self.link,
             "created_at": self.created_at.isoformat() + "Z",
+        }
+
+
+class Character(db.Model):
+    """A player's base character: the build as they made it, untouched by any campaign.
+
+    Only the player's decisions are stored (see characters/engine.py). The sheet is worked out
+    from them on every read, so a rules fix updates every character at once.
+    """
+    __tablename__ = "characters"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(60))
+    build: Mapped[dict] = mapped_column(db.JSON)
+    build_mode: Mapped[str] = mapped_column(String(10), default="standard")
+    is_complete: Mapped[bool] = mapped_column(default=False)
+    template: Mapped[str | None] = mapped_column(String(60))
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(default=utcnow, onupdate=utcnow)
+
+    user: Mapped[User] = relationship(back_populates="characters")
+
+    def to_dict(self) -> dict:
+        from .characters.engine import name_of
+        b = self.build
+        return {
+            "id": self.id,
+            "name": self.name or "Unnamed adventurer",
+            "level": b.get("level", 1),
+            "race": name_of("races", b.get("race")),
+            "subrace": name_of("subraces", b.get("subrace")),
+            "class": name_of("classes", b.get("class")),
+            "class_index": b.get("class"),
+            "subclass": name_of("subclasses", b.get("subclass")),
+            "background": name_of("backgrounds", b.get("background")),
+            "build_mode": self.build_mode,
+            "status": "complete" if self.is_complete else "draft",
+            "template": self.template,
+            "created_at": self.created_at.isoformat() + "Z",
+            "updated_at": self.updated_at.isoformat() + "Z",
         }

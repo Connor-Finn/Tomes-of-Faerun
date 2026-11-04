@@ -43,3 +43,5 @@ def ensure_database() -> None:
     db_path.parent.mkdir(parents=True, exist_ok=True)
     if not inspect(db.engine).has_table("users"):
         reset_database()
+    else:
+        db.create_all()  # adds tables for new features to an existing database
