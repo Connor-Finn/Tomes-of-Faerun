@@ -17,7 +17,8 @@ that run on every push.
 | Rules data API (SRD spells, monsters, classes, races, equipment, magic items) | ✅ Done |
 | Guild Hall hub, Player / Dungeon Master modes, tome layout | ✅ Done |
 | Character rules engine and API (every SRD rule checked on the server) | ✅ Done |
-| Character builder and sheets    | 🛠 In progress |
+| My characters, character sheets, premade templates, build mode | ✅ Done |
+| Character builder (Easy and Standard) | 🛠 In progress |
 | Bestiary                        | 🛠 Planned   |
 | Spell catalogue and spellbooks  | 🛠 Planned   |
 | Items and equipment             | 🛠 Planned   |

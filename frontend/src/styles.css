@@ -443,7 +443,87 @@ form[role=search] { display: flex; max-width: 520px; }
 .mail-body { white-space: pre-line; font-family: var(--font-fell); font-size: 1.05rem; }
 .mail a { overflow-wrap: anywhere; }
 
+
+/* ---------- Character Manager ---------- */
+.leaf-heading {
+  margin: 1.6rem 0 0.6rem; font-size: 1.15rem; color: var(--wax-dark);
+  border-bottom: 1px solid var(--line); padding-bottom: 0.2rem;
+}
+.empty-page { padding: 1.4rem; border: 1px dashed rgba(95, 65, 30, 0.45); border-radius: 3px; text-align: center; font-style: italic; }
+.character-list, .template-list { list-style: none; margin: 1rem 0 0; padding: 0; display: grid; gap: 0.8rem; }
+.character-card, .template-card {
+  display: flex; gap: 1rem; align-items: center; padding: 0.9rem 1rem; border-radius: 3px;
+  background: rgba(255, 250, 236, 0.4); border: 1px solid rgba(95, 65, 30, 0.3);
+  box-shadow: 0 1px 3px rgba(60, 35, 10, 0.2);
+}
+.template-card { justify-content: space-between; flex-wrap: wrap; }
+.template-card p { margin: 0.15rem 0; }
+.character-card-body { min-width: 0; }
+.character-crest {
+  flex: none; width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center;
+  font-family: var(--font-display); font-size: 1.6rem; color: #fbecd0;
+  background: radial-gradient(circle at 35% 30%, var(--wax-light), var(--wax) 55%, var(--wax-dark));
+  box-shadow: 0 2px 6px rgba(60, 20, 10, 0.45), inset 0 0 0 3px rgba(0, 0, 0, 0.14);
+}
+.character-name, .template-name { font-family: var(--font-display); font-size: 1.3rem; margin: 0; }
+.character-line { margin: 0.1rem 0 0.3rem; font-family: var(--font-fell); font-style: italic; }
+.character-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 0.45rem; margin: 0; }
+.pill.complete { color: var(--moss); }
+.pill.draft { color: #8a6420; }
+.pill.mode { color: var(--sky-ink); }
+.path-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.9rem; }
+.path-card { position: relative; padding: 1rem 1.1rem; border-radius: 3px; border: 1px solid rgba(95, 65, 30, 0.35); background: rgba(255, 250, 236, 0.32); }
+.path-card h4 { margin: 0 0 0.3rem; font-family: var(--font-display); font-weight: 400; font-size: 1.2rem; }
+.path-card p { margin: 0 0 0.6rem; font-size: 0.98rem; }
+
+.character-controls { margin-top: 1.8rem; display: grid; gap: 1rem; }
+.build-mode { border: 1px solid var(--line); border-radius: 3px; padding: 0.7rem 0.9rem; margin: 0; display: grid; gap: 0.3rem; }
+.build-mode legend { padding: 0 0.3rem; font-family: var(--font-display); font-weight: 400; color: var(--wax-dark); }
+
+.draft-notice { position: relative; margin: 0.5rem 0 1rem; padding: 1rem 1.2rem 0.6rem; border: 1px dashed rgba(138, 100, 32, 0.6); border-radius: 3px; background: rgba(232, 195, 118, 0.18); }
+.draft-notice .badge { position: absolute; top: -0.7rem; right: 1rem; background: var(--parchment); color: #8a6420; border-color: #8a6420; }
+.draft-notice p { margin: 0 0 0.4rem; }
+.sheet-identity { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0.4rem 1rem; margin: 0 0 1rem; }
+.sheet-identity div { border-bottom: 1px solid var(--line); padding-bottom: 0.2rem; }
+.sheet-identity dt { font-size: 0.8rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.sheet-identity dd { margin: 0; font-family: var(--font-fell); font-size: 1.1rem; }
+.stat-row, .ability-row { list-style: none; padding: 0; margin: 0.6rem 0 0.4rem; display: grid; gap: 0.6rem; }
+.stat-row { grid-template-columns: repeat(auto-fit, minmax(88px, 1fr)); }
+.ability-row { grid-template-columns: repeat(auto-fit, minmax(76px, 1fr)); }
+.stat, .ability {
+  display: grid; justify-items: center; text-align: center; padding: 0.55rem 0.4rem; border-radius: 3px;
+  border: 1.5px solid rgba(95, 65, 30, 0.45); background: rgba(255, 250, 236, 0.4);
+}
+.stat-value { font-family: var(--font-display); font-size: 1.7rem; line-height: 1.1; color: var(--ink); }
+.stat-label { font-size: 0.82rem; letter-spacing: 0.04em; color: var(--muted); }
+.stat-note { font-size: 0.78rem; font-style: italic; color: var(--muted); line-height: 1.2; }
+.ability-name { text-decoration: none; font-size: 0.85rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.ability-mod { font-family: var(--font-display); font-size: 1.8rem; line-height: 1.1; }
+.ability-score { min-width: 2.4rem; border: 1px solid rgba(95, 65, 30, 0.45); border-radius: 999px; font-size: 0.95rem; background: var(--parchment); }
+.sheet-columns { display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); gap: 1.5rem; }
+.check-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.1rem; }
+.check-list li { display: flex; align-items: baseline; gap: 0.45rem; }
+.check-bonus { min-width: 2rem; font-variant-numeric: tabular-nums; font-weight: 600; }
+.prof-dot { flex: none; width: 0.7rem; height: 0.7rem; border-radius: 50%; border: 1.5px solid var(--ink-muted); align-self: center; }
+.prof-dot.on { background: var(--ink); border-color: var(--ink); }
+.prof-dot.double { background: var(--wax); border-color: var(--wax); box-shadow: 0 0 0 2px var(--parchment), 0 0 0 3.5px var(--wax); }
+.prof-list { display: grid; grid-template-columns: max-content 1fr; gap: 0.3rem 1rem; margin: 0; }
+.prof-list dt { font-weight: 600; }
+.prof-list dd { margin: 0; }
+.spell-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.2rem; }
+.spell-list li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.4rem; padding: 0.2rem 0; border-bottom: 1px dotted var(--line); }
+.spell-name { font-family: var(--font-fell); font-size: 1.08rem; }
+.spell-tags { margin-left: auto; display: flex; gap: 0.3rem; }
+.feature { border-bottom: 1px solid var(--line); padding: 0.35rem 0; }
+.feature summary { cursor: pointer; }
+.feature-name { font-family: var(--font-fell); font-size: 1.1rem; }
+.feature p { margin: 0.4rem 0 0.4rem 1.1rem; font-size: 0.98rem; }
+.pack-contents summary { cursor: pointer; font-size: 0.85rem; color: var(--muted); }
+.notes-form textarea { resize: vertical; font-family: var(--font-fell); }
+
 @media (max-width: 760px) {
+  .sheet-columns { grid-template-columns: minmax(0, 1fr); }
+  .character-card { align-items: flex-start; }
   body { font-size: 17px; }
   .account-layout { grid-template-columns: 1fr; }
   .shelf { grid-template-columns: minmax(0, 1fr); }

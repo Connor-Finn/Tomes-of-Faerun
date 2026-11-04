@@ -1,7 +1,16 @@
+import type { ComponentType } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 import { Breadcrumbs, Tome } from "../components/Tome";
 import { MODE_LABELS, useEnterMode } from "../lib/mode";
 import type { SectionDef, TomePageDef } from "../lib/sections";
+import { CreateCharacter } from "./characters/CreateCharacter";
+import { MyCharacters } from "./characters/MyCharacters";
+
+/** Pages that are built, by "section key/page slug". Every other page shows its plans. */
+const BUILT_PAGES: Record<string, ComponentType> = {
+  "character-manager/my-characters": MyCharacters,
+  "character-manager/create": CreateCharacter,
+};
 
 /** One section of the app (e.g. Character Manager), shown as a tome. */
 export function SectionTome({ section }: { section: SectionDef }) {
@@ -14,6 +23,7 @@ export function SectionTome({ section }: { section: SectionDef }) {
 
   const page = section.pages.find((p) => p.slug === slug);
   const modeLabel = MODE_LABELS[section.mode];
+  const Built = page ? BUILT_PAGES[`${section.key}/${page.slug}`] : undefined;
 
   return (
     <>
@@ -33,7 +43,15 @@ export function SectionTome({ section }: { section: SectionDef }) {
         current={page?.slug}
         cover={section.cover}
       >
-        {section.sealed ? <SealedPage /> : page ? <DraftPage page={page} /> : <MissingPage basePath={basePath} />}
+        {section.sealed ? (
+          <SealedPage />
+        ) : Built ? (
+          <Built />
+        ) : page ? (
+          <DraftPage page={page} />
+        ) : (
+          <MissingPage basePath={basePath} />
+        )}
       </Tome>
     </>
   );
