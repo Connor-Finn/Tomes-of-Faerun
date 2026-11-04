@@ -430,7 +430,7 @@ th, td { text-align: left; padding: 0.6rem 0.55rem; border-bottom: 1px solid var
 th { font-family: var(--font-display); font-weight: 400; font-size: 1rem; color: var(--muted); }
 td.actions { text-align: right; white-space: nowrap; }
 td.actions .btn + .btn { margin-left: 0.4rem; }
-.pill { font-size: 0.85rem; padding: 0.05rem 0.5rem; border-radius: 3px; border: 1px solid; font-family: var(--font-display); }
+.pill { font-size: 0.85rem; padding: 0.05rem 0.5rem; border-radius: 3px; border: 1px solid; font-family: var(--font-display); white-space: nowrap; }
 .pill.active { color: var(--moss); }
 .pill.banned { color: var(--wax); }
 .pill.unverified { color: #8a6420; }
@@ -692,6 +692,21 @@ form.bestiary-filters .field.checks { grid-column: 1 / -1; display: flex; flex-w
 .link-like { font: inherit; background: none; border: 0; padding: 0; color: inherit; cursor: pointer; text-align: left; text-decoration: underline dotted rgba(95, 65, 30, 0.5); text-underline-offset: 3px; }
 .link-like.spell-name { font-family: var(--font-fell); font-size: 1.08rem; }
 .link-like:hover { color: var(--wax); }
+
+/* Items: rarity in ink colours, a gilded edge for magic items, and quantities in the picker */
+.rarity { font-variant: small-caps; font-weight: 600; letter-spacing: 0.02em; }
+.rarity-common { color: var(--ink-muted); }
+.rarity-uncommon { color: var(--moss); }
+.rarity-rare { color: var(--sky-ink); }
+.rarity-very-rare { color: #5b3a7a; }
+.rarity-legendary { color: #9a5a12; }
+.rarity-artifact { color: var(--wax-dark); }
+.rarity-varies { color: var(--ink-muted); font-style: italic; }
+.item-block.magic { border-left: 3px double var(--brass); padding-left: 0.9rem; }
+.item-picker .picked-spells li .row { gap: 0.3rem; }
+.qty-input { width: 4.2rem; padding: 0.1rem 0.3rem; font: inherit; font-size: 0.9rem; }
+.reader-row td { border-top: 0; padding-top: 0; }
+.reader-row .spell-reader { margin-top: 0; }
 
 @media (max-width: 760px) {
   .builder { padding: 1.2rem 1rem; }

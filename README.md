@@ -22,7 +22,7 @@ that run on every push.
 | Level roadmaps and publishing characters | 🛠 Planned |
 | Bestiary: stat blocks, monster collections (minion / elite / boss), environments | ✅ Done |
 | Spell catalogue (search, filters, full rules text), favourite spells, readable character spellbooks | ✅ Done |
-| Items and equipment             | 🛠 Planned   |
+| Items catalogue (equipment and magic items, search, filters, full descriptions), favourite items, adding items to characters | ✅ Done |
 | Campaigns                       | 🛠 Planned   |
 | Parties, sharing and messaging  | 🛠 Planned   |
 | Solo text adventure             | 🛠 Planned   |
@@ -136,6 +136,11 @@ Catalogue filters: spells take `level`, `school`, `class`, `ritual`, `concentrat
 `type`, `size`, `cr_min`, `cr_max` and `sort=cr`. Equipment takes `category`. Magic items take `rarity`, `category` and
 `include_variants`. Add `facets=1` to get the filter options, and `order=desc` to reverse the sort.
 
+The items catalogue (`GET /api/items`, logged in) puts equipment and magic items in one list. It takes `q`, `kind`
+(`equipment` or `magic`), `category`, `rarity`, `attunement`, `favourites=1` and `sort` (`name`, `category`, `cost`,
+`rarity`). `GET /api/items/<index>` adds which of your characters carry the item, and
+`PUT`/`DELETE /api/items/favourites/<index>` star and unstar it.
+
 ## Characters
 
 A character is stored as its **build**: only the player's decisions (race, class, level, ability scores and one list
@@ -149,7 +154,8 @@ answers instead of re-implementing the rules: Easy build hides denied options an
 but either way the server refuses an illegal pick. A legal but unfinished build saves as a draft.
 
 House rules for now: ability scores by standard array or point buy, hit points take the fixed average after level 1,
-starting equipment comes from the class and background, and no multiclassing.
+starting equipment comes from the class and background, and no multiclassing. Players can add any item from the
+items catalogue on top of the starting kit (the build's `items`, index to quantity); the sheet marks those as added.
 
 | Endpoint | What it does |
 |----------|--------------|

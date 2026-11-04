@@ -24,6 +24,7 @@ Build shape (all indexes are SRD `index` slugs):
       "ability_scores": {"method": "standard-array" | "point-buy", "base": {"str": 15, ...}},
       "choices": {"<slot id>": ["<value>", ...]},
       "equipped": {"armor": "chain-mail", "shield": "shield"},
+      "items": {"bag-of-holding": 1, "torch": 5},   # extras added from the items catalogue
       "notes": {"personality": "...", "ideal": "...", "bond": "...", "flaw": "...", "backstory": "..."}
     }
 """
@@ -52,6 +53,8 @@ EASY_MAX_CREATION_LEVEL = 3
 NOTE_FIELDS = ("personality", "ideal", "bond", "flaw", "backstory")
 NOTE_MAX_LENGTH = 2000
 NAME_MAX_LENGTH = 60
+MAX_EXTRA_ITEMS = 100
+MAX_ITEM_QUANTITY = 999
 
 # Casters who learn a fixed list of spells vs. casters who prepare from their whole class list.
 KNOWN_CASTERS = {"bard", "ranger", "sorcerer", "warlock"}
@@ -238,7 +241,9 @@ class Analysis:
     chosen_features: set[str] = field(default_factory=set)
     feats: list[str] = field(default_factory=list)
     extra_spells: list[tuple[str, str]] = field(default_factory=list)  # (spell index, source)
-    inventory: dict[str, int] = field(default_factory=dict)
+    inventory: dict[str, int] = field(default_factory=dict)      # equipment index -> quantity
+    magic_items: dict[str, int] = field(default_factory=dict)    # magic item index -> quantity
+    added: dict[str, int] = field(default_factory=dict)          # the extras the player added
     stale: list[str] = field(default_factory=list)
 
     @property
@@ -762,7 +767,40 @@ def _equipment(a: Analysis) -> None:
                     for i, o in enumerate(a.background.get("starting_equipment_options", []))]
     for key, owner, opts in sources:
         _equipment_slot(a, f"equipment:{key}", owner, opts)
+    _extra_items(a)
     _equipped(a)
+
+
+def _extra_items(a: Analysis) -> None:
+    """Items the player added from the catalogue, on top of the starting equipment.
+
+    House rule (Connor, 2026-11-04): any SRD equipment or magic item may be added. They're marked
+    as added on the sheet, so the starting kit stays exactly what the rules give. Added weapons
+    and armour count like any other (attacks, armour class); magic items are listed but their
+    magic isn't worked into the numbers.
+    """
+    extras = a.build.get("items")
+    if not extras:
+        return
+    if not isinstance(extras, dict):
+        a.error("items", "Added items must be an object of item index to quantity.")
+        return
+    if len(extras) > MAX_EXTRA_ITEMS:
+        a.error("items", f"A character can carry at most {MAX_EXTRA_ITEMS} different added items.")
+        return
+    for index, qty in extras.items():
+        equipment = rules.get("equipment", index)
+        magic = None if equipment else rules.get("magic-items", index)
+        if not equipment and not magic:
+            a.error(f"items.{index}", f"There's no item called “{index}” in the catalogue.")
+            continue
+        name = (equipment or magic)["name"]
+        if isinstance(qty, bool) or not isinstance(qty, int) or not 1 <= qty <= MAX_ITEM_QUANTITY:
+            a.error(f"items.{index}", f"{name}: the quantity must be a whole number from 1 to {MAX_ITEM_QUANTITY}.")
+            continue
+        a.added[index] = qty
+        target = a.inventory if equipment else a.magic_items
+        target[index] = target.get(index, 0) + qty
 
 
 def _bundle(o: dict) -> tuple[list[tuple[str, int]], list[dict], str]:
@@ -845,7 +883,7 @@ def _prune_stale(a: Analysis) -> None:
 def clean(build: dict) -> dict:
     """A copy of the build with stale choices removed and unknown keys dropped."""
     keep = ("name", "level", "race", "subrace", "class", "subclass", "background", "alignment",
-            "ability_scores", "choices", "equipped", "notes")
+            "ability_scores", "choices", "equipped", "items", "notes")
     out = {k: build.get(k) for k in keep if k in build}
     out["name"] = str(out.get("name") or "").strip()
     out.setdefault("level", 1)
@@ -1002,12 +1040,21 @@ def _inventory(a: Analysis) -> list[dict]:
         if not item:
             continue
         out.append({
-            "index": index, "name": item["name"], "quantity": qty,
+            "index": index, "name": item["name"], "quantity": qty, "kind": "equipment",
             "category": item["equipment_category"]["name"], "weight": item.get("weight"),
-            "equipped": index in equipped,
+            "equipped": index in equipped, "added": a.added.get(index, 0), "rarity": None, "attunement": None,
             "contents": [{"name": c["item"]["name"], "quantity": c["quantity"]} for c in item.get("contents", [])],
         })
-    out.sort(key=lambda i: (not i["equipped"], i["category"], i["name"]))
+    for index, qty in a.magic_items.items():
+        item = rules.get("magic-items", index)
+        first = (item.get("desc") or [""])[0]
+        out.append({
+            "index": index, "name": item["name"], "quantity": qty, "kind": "magic",
+            "category": item["equipment_category"]["name"], "weight": None,
+            "equipped": False, "added": qty, "rarity": item["rarity"]["name"],
+            "attunement": "(requires attunement" in first, "contents": [],
+        })
+    out.sort(key=lambda i: (not i["equipped"], i["kind"] == "magic", i["category"], i["name"]))
     return out
 
 

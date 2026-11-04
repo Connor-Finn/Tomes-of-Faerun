@@ -260,20 +260,22 @@ function SpellList() {
   );
 }
 
-function FilterSelect({
+export function FilterSelect({
   label,
   value,
   options,
   onChange,
   anyLabel = "All",
+  idPrefix = "spell-filter",
 }: {
   label: string;
   value: string | null;
   options?: Option[];
   onChange: (value: string) => void;
   anyLabel?: string;
+  idPrefix?: string;
 }) {
-  const id = `spell-filter-${label.toLowerCase().replace(/\W+/g, "-")}`;
+  const id = `${idPrefix}-${label.toLowerCase().replace(/\W+/g, "-")}`;
   return (
     <div className="field">
       <label htmlFor={id}>{label}</label>
