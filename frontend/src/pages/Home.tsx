@@ -7,7 +7,7 @@ export function Home() {
   return (
     <>
       <section className="hero">
-        <p className="eyebrow">A D&amp;D adventure tool</p>
+        <p className="eyebrow">Pull up a chair, adventurer</p>
         <h1>Your adventures, bound in one tome.</h1>
         <p className="lead">
           Build characters, look up spells and monsters, run campaigns with your party, and practise the rules in a
