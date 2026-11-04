@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { api } from "../../lib/api";
 import { characterPath, type CharacterDetail, type Template } from "../../lib/characters";
 import { useFlash } from "../../lib/flash";
@@ -43,12 +43,16 @@ export function CreateCharacter() {
         <div className="path-card" data-testid="path-easy">
           <h4>Easy build</h4>
           <p>A guided, step-by-step tutorial. Only the options your character can take are shown, with help along the way. Levels 1 to 3.</p>
-          <span className="badge">Being written</span>
+          <Link to="/play/characters/new?mode=easy" className="btn primary small">
+            Start an Easy build
+          </Link>
         </div>
         <div className="path-card" data-testid="path-standard">
           <h4>Standard build</h4>
           <p>Every choice on free tabs you can jump between, levels 1 to 20. Every rule is still enforced.</p>
-          <span className="badge">Being written</span>
+          <Link to="/play/characters/new?mode=standard" className="btn primary small">
+            Start a Standard build
+          </Link>
         </div>
       </div>
 

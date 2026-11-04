@@ -18,7 +18,8 @@ that run on every push.
 | Guild Hall hub, Player / Dungeon Master modes, tome layout | ✅ Done |
 | Character rules engine and API (every SRD rule checked on the server) | ✅ Done |
 | My characters, character sheets, premade templates, build mode | ✅ Done |
-| Character builder (Easy and Standard) | 🛠 In progress |
+| Character builder: Standard (free tabs, levels 1 to 20) and Easy (guided tutorial, levels 1 to 3) | ✅ Done |
+| Level roadmaps and publishing characters | 🛠 Planned |
 | Bestiary                        | 🛠 Planned   |
 | Spell catalogue and spellbooks  | 🛠 Planned   |
 | Items and equipment             | 🛠 Planned   |

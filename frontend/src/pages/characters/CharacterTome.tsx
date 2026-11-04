@@ -152,6 +152,9 @@ function CharacterControls({ detail, onChange }: { detail: CharacterDetail; onCh
         </p>
       </fieldset>
       <div className="row wrap">
+        <Link to={`/play/characters/c/${character.id}/edit`} className="btn primary small">
+          Edit in the builder
+        </Link>
         <button type="button" className="btn ghost small" onClick={() => setDeleting(true)}>
           Delete character
         </button>
@@ -232,6 +235,9 @@ function DraftNotice({ detail }: { detail: CharacterDetail }) {
         ))}
         {detail.missing.length > shown.length && <li>…and {detail.missing.length - shown.length} more.</li>}
       </ul>
+      <Link to={`/play/characters/c/${detail.character.id}/edit`} className="btn ghost small">
+        Continue building
+      </Link>
     </div>
   );
 }
