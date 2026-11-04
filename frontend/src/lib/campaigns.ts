@@ -105,6 +105,8 @@ export interface PartySummary {
   campaigns: { id: number; name: string; status: CampaignStatus }[];
   created_at: string;
   invited_at?: string;
+  /** Party lists only: chat messages others wrote that you haven't read. */
+  unread?: number;
 }
 
 export interface PartyMember extends Person {
@@ -127,6 +129,7 @@ export const PLAYER_PARTIES_PATH = "/play/campaigns/parties";
 export const dmCampaignPath = (id: number, page = "overview") => `/dm/campaigns/c/${id}/${page}`;
 export const playerCampaignPath = (id: number, page = "overview") => `/play/campaigns/c/${id}/${page}`;
 export const dmPartyPath = (id: number) => `${DM_PARTIES_PATH}/${id}`;
+export const playerPartyPath = (id: number) => `${PLAYER_PARTIES_PATH}/${id}`;
 
 /** "1 Nov 2026" */
 export function longDate(iso: string): string {

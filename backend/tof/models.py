@@ -55,6 +55,8 @@ class User(db.Model):
     parties: Mapped[list[Party]] = relationship(back_populates="dm", cascade="all, delete-orphan")
     memberships: Mapped[list[PartyMember]] = relationship(back_populates="user", cascade="all, delete-orphan")
     instances: Mapped[list[CharacterInstance]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    published: Mapped[list[PublishedCharacter]] = relationship(back_populates="author", cascade="all, delete-orphan")
+    chat_states: Mapped[list[PartyChatState]] = relationship(cascade="all, delete-orphan")
 
     @property
     def is_admin(self) -> bool:
@@ -304,6 +306,9 @@ class Party(db.Model):
     members: Mapped[list[PartyMember]] = relationship(
         back_populates="party", cascade="all, delete-orphan", order_by="PartyMember.id")
     campaigns: Mapped[list[Campaign]] = relationship(back_populates="party", order_by="Campaign.name")
+    messages: Mapped[list[PartyMessage]] = relationship(
+        back_populates="party", cascade="all, delete-orphan", order_by="PartyMessage.id")
+    chat_states: Mapped[list[PartyChatState]] = relationship(cascade="all, delete-orphan")
 
 
 class PartyMember(db.Model):
@@ -349,3 +354,52 @@ class CharacterInstance(db.Model):
     campaign: Mapped[Campaign] = relationship(back_populates="instances")
     user: Mapped[User] = relationship(back_populates="instances")
     character: Mapped[Character | None] = relationship(back_populates="instances")
+
+
+class PublishedCharacter(db.Model):
+    """A character its author shared as a template other players can copy.
+
+    Publishing takes a snapshot of the build, so later edits to the author's character never change
+    the template, and copies made from it are their new owners' own characters.
+    """
+    __tablename__ = "published_characters"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    author_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    character_id: Mapped[int | None] = mapped_column(ForeignKey("characters.id", ondelete="SET NULL"), index=True)
+    name: Mapped[str] = mapped_column(String(60))
+    summary: Mapped[str] = mapped_column(String(300), default="")
+    build: Mapped[dict] = mapped_column(db.JSON)
+    build_mode: Mapped[str] = mapped_column(String(10), default="standard")
+    copies: Mapped[int] = mapped_column(default=0)
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
+
+    author: Mapped[User] = relationship(back_populates="published")
+
+
+class PartyMessage(db.Model):
+    """One message in a party's chat. The DM and the party's members can read and write it."""
+    __tablename__ = "party_messages"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    party_id: Mapped[int] = mapped_column(ForeignKey("parties.id", ondelete="CASCADE"), index=True)
+    # Kept when the author deletes their account; the chat then says "a departed adventurer".
+    author_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), index=True)
+    body: Mapped[str] = mapped_column(String(1000))
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
+
+    party: Mapped[Party] = relationship(back_populates="messages")
+    author: Mapped[User | None] = relationship()
+
+
+class PartyChatState(db.Model):
+    """Where one person is in one party's chat: the last message they've read, and when they last
+    wrote something (so the others see "Mira is writing…")."""
+    __tablename__ = "party_chat_states"
+    __table_args__ = (UniqueConstraint("party_id", "user_id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    party_id: Mapped[int] = mapped_column(ForeignKey("parties.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    last_read_id: Mapped[int] = mapped_column(default=0)
+    writing_at: Mapped[datetime | None]

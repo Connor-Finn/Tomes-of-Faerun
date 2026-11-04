@@ -1,11 +1,18 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../../lib/api";
 import { characterPath, type CharacterDetail, type Template } from "../../lib/characters";
 import { useFlash } from "../../lib/flash";
+import { PUBLISHED_BROWSE_PATH } from "../../lib/published";
+import { PublishedCharacters } from "./PublishCharacter";
 
 /** Character Manager › Create a character: start from a template, or build from scratch. */
 export function CreateCharacter() {
+  const { sub } = useParams();
+  return sub === "published" ? <PublishedCharacters /> : <CreatePaths />;
+}
+
+function CreatePaths() {
   const [templates, setTemplates] = useState<Template[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -58,6 +65,14 @@ export function CreateCharacter() {
 
       <h3 className="leaf-heading">Start from a template</h3>
       <p className="muted">A finished character you copy as your own. Changing your copy never changes the template.</p>
+      <div className="path-card published-path" data-testid="path-published">
+        <h4>Published by other players</h4>
+        <p>Browse the characters other adventurers have shared, and copy one to play.</p>
+        <Link to={PUBLISHED_BROWSE_PATH} className="btn ghost small">
+          Browse published characters
+        </Link>
+      </div>
+      <h4 className="subheading">Default characters</h4>
       {error && (
         <p className="form-error-summary" role="alert">
           {error}

@@ -10,8 +10,9 @@
     POST   /api/parties/<id>/decline            decline your invitation
     DELETE /api/parties/<id>/members/<user_id>  DM removes a player or cancels an invite; a player can remove themselves
 
-Chat, friend requests, public parties you can ask to join and player-to-player invites come later,
-with the online features. `visibility` is stored now so those can use it.
+Each party also has a chat (see chat.py); the party lists say how many messages you haven't read.
+Friend requests, public parties you can ask to join and player-to-player invites come later.
+`visibility` is stored now so those can use it.
 """
 from __future__ import annotations
 
@@ -124,9 +125,14 @@ def list_parties():
     led = sorted(g.user.parties, key=lambda p: p.name.lower())
     joined = [m.party for m in g.user.memberships if m.status == "member"]
     invites = [m for m in g.user.memberships if m.status == "invited"]
+    from .chat import unread_count
+
+    def with_unread(p: Party) -> dict:
+        return {**_summary(p), "unread": unread_count(p, g.user)}
+
     return jsonify(
-        led=[_summary(p) for p in led],
-        joined=[_summary(p) for p in sorted(joined, key=lambda p: p.name.lower())],
+        led=[with_unread(p) for p in led],
+        joined=[with_unread(p) for p in sorted(joined, key=lambda p: p.name.lower())],
         invitations=[{**_summary(m.party), "invited_at": m.invited_at.isoformat() + "Z"} for m in invites],
         limit=MAX_PARTIES,
     )

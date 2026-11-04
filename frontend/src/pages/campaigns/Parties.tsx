@@ -8,6 +8,8 @@ import {
   dmPartyPath,
   longDate,
   playerCampaignPath,
+  playerPartyPath,
+  PLAYER_PARTIES_PATH,
   type Party,
   type PartyMember,
   type PartySummary,
@@ -15,6 +17,7 @@ import {
 import { useAuth } from "../../lib/auth";
 import { useFlash } from "../../lib/flash";
 import { ConfirmDialog } from "../bestiary/ConfirmDialog";
+import { PartyChat } from "./PartyChat";
 
 interface PartyLists {
   led: PartySummary[];
@@ -37,6 +40,16 @@ function usePartyLists() {
 }
 
 const VISIBILITY_LABEL = { private: "Private", public: "Public" };
+
+/** "3 unread" on a party card, when the chat has news. */
+function UnreadPill({ count }: { count?: number }) {
+  if (!count) return null;
+  return (
+    <span className="pill unread-pill" data-testid="unread">
+      {count} unread
+    </span>
+  );
+}
 
 // ================================================================ DM: Parties
 /** DM Mode › Campaigns › Parties: the parties you lead, or one of them. */
@@ -124,9 +137,12 @@ function DmPartyList() {
         <ul className="collection-list" data-testid="party-list">
           {lists.led.map((p) => (
             <li key={p.id} className="collection-card" data-testid="party-card">
-              <Link to={dmPartyPath(p.id)} className="collection-name">
-                {p.name}
-              </Link>
+              <div className="row wrap">
+                <Link to={dmPartyPath(p.id)} className="collection-name">
+                  {p.name}
+                </Link>
+                <UnreadPill count={p.unread} />
+              </div>
               <p className="muted small" data-testid="party-facts">
                 {VISIBILITY_LABEL[p.visibility]} · {plural(p.member_count, "player")}
                 {p.invited_count > 0 && ` · ${p.invited_count} invited`}
@@ -199,7 +215,7 @@ function DmPartyPage({ id }: { id: number }) {
   const invited = party.members.filter((m) => m.status === "invited");
 
   return (
-    <section aria-labelledby="page-title" data-testid="party">
+    <section aria-labelledby="page-title" data-testid="party" className="party-page">
       {back}
       <div className="row between wrap">
         <h2 id="page-title" className="page-title">
@@ -218,6 +234,8 @@ function DmPartyPage({ id }: { id: number }) {
           </label>
         ))}
       </fieldset>
+
+      <PartyChat partyId={id} />
 
       <h3 className="leaf-heading">Players</h3>
       {members.length === 0 ? (
@@ -342,8 +360,13 @@ function DmPartyPage({ id }: { id: number }) {
 }
 
 // ================================================================ Player: Parties
-/** Player Mode › Campaigns › Parties: invitations to answer and the parties you're in. */
+/** Player Mode › Campaigns › Parties: invitations to answer and the parties you're in, or one party. */
 export function PlayerParties() {
+  const { sub } = useParams();
+  return sub ? <PlayerPartyPage id={Number(sub)} /> : <PlayerPartyList />;
+}
+
+function PlayerPartyList() {
   const { flash } = useFlash();
   const { lists, error, reload } = usePartyLists();
   const [leaving, setLeaving] = useState<PartySummary | null>(null);
@@ -365,8 +388,8 @@ export function PlayerParties() {
         Parties
       </h2>
       <p className="page-summary">
-        The adventuring parties you belong to. Dungeon Masters form parties and invite players; party chat is coming
-        with the online features.
+        The adventuring parties you belong to. Dungeon Masters form parties and invite players. Open a party to write
+        in its chat.
       </p>
       {error && (
         <p className="form-error-summary" role="alert">
@@ -419,7 +442,12 @@ export function PlayerParties() {
         <ul className="collection-list" data-testid="party-list">
           {lists.joined.map((p) => (
             <li key={p.id} className="collection-card" data-testid="party-card">
-              <p className="collection-name">{p.name}</p>
+              <div className="row wrap">
+                <Link to={playerPartyPath(p.id)} className="collection-name">
+                  {p.name}
+                </Link>
+                <UnreadPill count={p.unread} />
+              </div>
               <p className="muted small" data-testid="party-facts">
                 Led by {p.dm.name} · {plural(p.member_count, "player")}
               </p>
@@ -436,14 +464,19 @@ export function PlayerParties() {
               ) : (
                 <p className="muted small">No campaigns yet.</p>
               )}
-              <button
-                type="button"
-                className="btn ghost small"
-                aria-label={`Leave ${p.name}`}
-                onClick={() => setLeaving(p)}
-              >
-                Leave party
-              </button>
+              <div className="row wrap">
+                <Link to={playerPartyPath(p.id)} className="btn primary small" aria-label={`Open ${p.name}'s chat`}>
+                  Open party chat
+                </Link>
+                <button
+                  type="button"
+                  className="btn ghost small"
+                  aria-label={`Leave ${p.name}`}
+                  onClick={() => setLeaving(p)}
+                >
+                  Leave party
+                </button>
+              </div>
             </li>
           ))}
         </ul>
@@ -459,6 +492,98 @@ export function PlayerParties() {
             if (!res.ok) return res.data.error ?? "You didn't leave.";
             flash("info", res.data.message);
             void reload();
+          }}
+        >
+          <p>You leave the party and its campaigns. The Dungeon Master can invite you back later.</p>
+        </ConfirmDialog>
+      )}
+    </section>
+  );
+}
+
+/** Player Mode › Campaigns › Parties › one party: who's in it, its chat and its campaigns. */
+function PlayerPartyPage({ id }: { id: number }) {
+  const navigate = useNavigate();
+  const { flash } = useFlash();
+  const me = useAuth().user?.id ?? null;
+  const [party, setParty] = useState<Party | null>(null);
+  const [missing, setMissing] = useState(false);
+  const [leaving, setLeaving] = useState(false);
+
+  useEffect(() => {
+    void api.get<{ party: Party }>(`/api/parties/${id}`).then((res) => {
+      // The DM manages their own parties from DM Mode; send them there.
+      if (res.ok && res.data.party.role === "dm") navigate(dmPartyPath(id), { replace: true });
+      else if (res.ok && res.data.party.members.some((m) => m.id === me && m.status === "member")) setParty(res.data.party);
+      else setMissing(true);
+    });
+  }, [id, me, navigate]);
+
+  const back = (
+    <Link to={PLAYER_PARTIES_PATH} className="back-link">
+      ← All parties
+    </Link>
+  );
+  if (missing) {
+    return (
+      <section aria-labelledby="page-title" data-testid="party-missing">
+        {back}
+        <h2 id="page-title" className="page-title">
+          Party not found
+        </h2>
+        <p className="muted">It may have been disbanded, or you aren't in it any more.</p>
+      </section>
+    );
+  }
+  if (!party) return <p className="muted">Calling the roll…</p>;
+  const members = party.members.filter((m) => m.status === "member");
+
+  return (
+    <section aria-labelledby="page-title" data-testid="party" className="party-page">
+      {back}
+      <h2 id="page-title" className="page-title">
+        {party.name}
+      </h2>
+      {party.description && <p className="page-summary">{party.description}</p>}
+      <ul className="party-roster" aria-label="Who's in the party" data-testid="party-roster">
+        <li>
+          {party.dm.name} <span className="muted small">(Dungeon Master)</span>
+        </li>
+        {members.map((m) => (
+          <li key={m.id}>{m.id === me ? `${m.name} (you)` : m.name}</li>
+        ))}
+      </ul>
+
+      <PartyChat partyId={id} />
+
+      <h3 className="leaf-heading">Campaigns</h3>
+      {party.campaigns.length === 0 ? (
+        <p className="muted" data-testid="party-campaigns">
+          No campaigns yet. Your Dungeon Master attaches the party to a campaign.
+        </p>
+      ) : (
+        <ul className="plain-list" data-testid="party-campaigns">
+          {party.campaigns.map((c) => (
+            <li key={c.id}>
+              <Link to={playerCampaignPath(c.id)}>{c.name}</Link>
+            </li>
+          ))}
+        </ul>
+      )}
+      <button type="button" className="btn ghost small" onClick={() => setLeaving(true)}>
+        Leave party
+      </button>
+
+      {leaving && me !== null && (
+        <ConfirmDialog
+          title={`Leave ${party.name}?`}
+          confirmLabel="Leave"
+          onClose={() => setLeaving(false)}
+          onConfirm={async () => {
+            const res = await api.delete<{ message: string }>(`/api/parties/${id}/members/${me}`);
+            if (!res.ok) return res.data.error ?? "You didn't leave.";
+            flash("info", res.data.message, { afterNavigate: true });
+            navigate(PLAYER_PARTIES_PATH);
           }}
         >
           <p>You leave the party and its campaigns. The Dungeon Master can invite you back later.</p>
