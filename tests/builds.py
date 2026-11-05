@@ -61,14 +61,14 @@ SUBCLASS_AT = {"fighter": (3, "champion"), "wizard": (2, "evocation"), "cleric":
 
 
 def level_up(ctx, campaign_url: str, to_level: int | None = None, prefer: dict[str, list[str]] | None = None,
-             hp_method: str = "average") -> dict:
+             hp_method: str = "average", headers: dict | None = None) -> dict:
     """Level a campaign character up the way the guided Level Up does, one level at a time.
 
     Each level starts from what the app offers (GET .../instance/level-up), makes the open picks
     with autofill (and the SRD's subclass when it unlocks), then takes the level.
     """
     def check(build: dict) -> dict:
-        response = ctx.post("/api/characters/check", data={"build": build, "previous_level": 20})
+        response = ctx.post("/api/characters/check", data={"build": build, "previous_level": 20}, headers=headers)
         assert response.ok, response.text()
         return response.json()
 
@@ -82,11 +82,12 @@ def level_up(ctx, campaign_url: str, to_level: int | None = None, prefer: dict[s
         if preview["subclass_unlocks"] and subclass:
             build = {**build, "subclass": subclass}
         if hp_method == "roll":
-            ctx.post(f"{campaign_url}/instance/level-up/hp-roll")
+            ctx.post(f"{campaign_url}/instance/level-up/hp-roll", headers=headers)
         # Keep the picks already made (earlier picks are locked), then the preferred ones
         keep = {k: list(v) + list((prefer or {}).get(k, [])) for k, v in (build.get("choices") or {}).items()}
         build = autofill(check, build, {**(prefer or {}), **keep})
-        response = ctx.post(f"{campaign_url}/instance/level-up", data={"build": build, "hp_method": hp_method})
+        response = ctx.post(f"{campaign_url}/instance/level-up", data={"build": build, "hp_method": hp_method},
+                            headers=headers)
         assert response.ok, response.text()
         body = response.json()
     return body

@@ -12,9 +12,10 @@ import uuid
 import pytest
 from playwright.sync_api import Browser, Page, expect
 
-from builds import aldric, autofill
+from builds import aldric, autofill, level_up
 from conftest import API_HEADERS
-from pages import BuilderPage, CampaignCharacterPage, CharacterPage, InstanceRoadmapPanel, LoginPage, RoadmapPage, RoadmapsPage
+from pages import (BuilderPage, CampaignCharacterPage, CharacterPage, InstanceRoadmapPanel, LevelUpPage, LoginPage, RoadmapPage,
+                   RoadmapsPage)
 from pages.sharing_pages import PublishedCharactersPage, PublishPage
 
 
@@ -182,9 +183,13 @@ def test_follow_a_roadmap_and_level_up_along_it(table: dict, player_page: Page):
     expect(panel.backup_summary).to_contain_text("Level 1 Human Fighter")
     expect(panel.backup_summary).to_contain_text("Before following “Champion route”")
 
-    panel.level_up.click()
-    expect(player_page.locator(".page-summary").first).to_contain_text("Level 2 Human Fighter")
-    panel.level_up.click()
+    for level in (2, 3):
+        panel.level_up.click()
+        levelling = LevelUpPage(player_page)
+        expect(levelling.roadmap_note).to_contain_text("Following “Champion route”")
+        levelling.choose_hp("average")
+        levelling.confirm()
+        expect(player_page.get_by_test_id("flash-success").last).to_contain_text(f"is now level {level}")
     expect(player_page.locator(".page-summary").first).to_contain_text("Level 3 Human Fighter (Champion)")
     expect(panel.ends).to_contain_text("The roadmap ends at level 3.")
 
@@ -197,10 +202,7 @@ def test_a_roadmap_that_hasnt_reached_the_level_cant_be_chosen(table: dict, play
     character = give_character(player_page)
     give_roadmap(player_page, character["id"], "Too short", to_level=1)
     join(player_page, table, character)
-    instance = post(player_page, f"/api/campaigns/{table['id']}/instance", method="get")["instance"]
-    check = lambda b: post(player_page, "/api/characters/check", {"build": b})  # noqa: E731
-    post(player_page, f"/api/campaigns/{table['id']}/instance",
-         {"build": autofill(check, {**instance["build"], "level": 2})}, method="patch")
+    level_up(player_page.request, f"/api/campaigns/{table['id']}", 2, headers=API_HEADERS)
 
     CampaignCharacterPage(player_page).open_player(table["id"], "character")
     panel = InstanceRoadmapPanel(player_page)
@@ -208,21 +210,20 @@ def test_a_roadmap_that_hasnt_reached_the_level_cant_be_chosen(table: dict, play
     expect(panel.roadmap).to_contain_text("Roadmaps that don't plan level 2 yet can't be followed")
 
 
-def test_levelling_by_hand_warns_that_it_stops_following(table: dict, player_page: Page):
+def test_level_up_fills_in_the_roadmaps_picks(table: dict, player_page: Page):
     character = give_character(player_page)
-    roadmap = give_roadmap(player_page, character["id"], to_level=2)
+    roadmap = give_roadmap(player_page, character["id"], to_level=3)
     join(player_page, table, character)
     post(player_page, f"/api/campaigns/{table['id']}/instance/roadmap", {"roadmap_id": roadmap["id"]}, method="put")
+    level_up(player_page.request, f"/api/campaigns/{table['id']}", 2, headers=API_HEADERS)
 
-    you = CampaignCharacterPage(player_page).open_player(table["id"], "character")
-    you.level_up.click()
-    expect(player_page.get_by_test_id("builder-following-note")).to_contain_text(
-        "Saving changes here stops following it")
-    player_page.get_by_label("Level", exact=True).select_option("2")
-    BuilderPage(player_page).save()
-    expect(player_page.get_by_test_id("flash-success").last).to_have_text(
-        "Aldric Vane is now level 2 in The Whispering Dead.")
-    expect(InstanceRoadmapPanel(player_page).roadmap_select).to_be_visible()   # following no more
+    levelling = LevelUpPage(player_page).open(table["id"])
+    expect(levelling.roadmap_note).to_contain_text("Changing them stops following the roadmap.")
+    expect(levelling.subclass.get_by_role("radio", name=re.compile("^Champion"))).to_be_checked()
+    levelling.choose_hp("average")
+    levelling.confirm()
+    expect(player_page.get_by_test_id("flash-success").last).to_contain_text("Following “Champion route”.")
+    expect(InstanceRoadmapPanel(player_page).following).to_contain_text("Following Champion route")
 
 
 def test_no_roadmaps_points_to_the_character_manager(table: dict, player_page: Page):
@@ -247,10 +248,7 @@ def test_save_restore_and_delete_a_backup(table: dict, player_page: Page):
     expect(panel.backup_summary).to_contain_text("Saved by hand")
 
     # Level up by hand, then go back to the backup: the two swap places
-    instance = post(player_page, f"/api/campaigns/{table['id']}/instance", method="get")["instance"]
-    check = lambda b: post(player_page, "/api/characters/check", {"build": b})  # noqa: E731
-    post(player_page, f"/api/campaigns/{table['id']}/instance",
-         {"build": autofill(check, {**instance["build"], "level": 2})}, method="patch")
+    level_up(player_page.request, f"/api/campaigns/{table['id']}", 2, headers=API_HEADERS)
     player_page.reload()
     expect(player_page.locator(".page-summary").first).to_contain_text("Level 2")
 

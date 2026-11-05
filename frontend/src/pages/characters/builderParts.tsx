@@ -1,5 +1,6 @@
 import { useId, useState, type ReactNode } from "react";
-import type { Ability, BuildMode, CharacterOptions, Sheet, Slot, SlotOption } from "../../lib/characters";
+import { api } from "../../lib/api";
+import type { Ability, AbilityRoll, BuildMode, CharacterOptions, Sheet, Slot, SlotOption } from "../../lib/characters";
 import { signed } from "../../lib/characters";
 import { useFavouriteSpells } from "../../lib/spells";
 import { FavouriteStar, SpellReader } from "../spells/SpellText";
@@ -361,6 +362,8 @@ export function SlotView(props: SlotProps) {
 export interface AbilityScoresValue {
   method?: string;
   base?: Partial<Record<Ability, number>>;
+  rolls?: number[];
+  roll_id?: number;
 }
 
 export function AbilityScores({
@@ -381,16 +384,36 @@ export function AbilityScores({
   const spent = Object.values(base).reduce((sum, v) => sum + (options.point_buy.costs[String(v)] ?? 0), 0);
   const left = options.point_buy.budget - spent;
   const used = Object.values(base);
+  // The app rolls once: a character keeps its own roll, a new one asks the server (which hands back
+  // the same unused roll however often it's asked, so there are no rerolls).
+  const [roll, setRoll] = useState<Pick<AbilityRoll, "id" | "rolls"> & { dice?: number[][] } | null>(
+    value.rolls && value.roll_id ? { id: value.roll_id, rolls: value.rolls } : null,
+  );
+  const [rollError, setRollError] = useState<string | null>(null);
+  const pool = method === "roll" ? [...(value.rolls ?? [])].sort((a, b) => b - a) : options.standard_array;
 
-  function setMethod(m: string) {
+  async function setMethod(m: string) {
+    setRollError(null);
     if (m === "point-buy") onChange({ method: m, base: Object.fromEntries(options.abilities.map((a) => [a.key, 8])) });
-    else onChange({ method: m, base: {} });
+    else if (m === "roll") {
+      let current = roll;
+      if (!current) {
+        const res = await api.post<{ roll: AbilityRoll }>("/api/characters/ability-rolls");
+        if (!res.ok) {
+          setRollError(res.data.error ?? "The dice wouldn't roll. Try again.");
+          return;
+        }
+        current = res.data.roll;
+        setRoll(current);
+      }
+      onChange({ method: m, base: {}, rolls: current.rolls, roll_id: current.id });
+    } else onChange({ method: m, base: {} });
   }
   function setScore(key: Ability, v: number | undefined) {
     const next = { ...base };
     if (v === undefined) delete next[key];
     else next[key] = v;
-    onChange({ method, base: next });
+    onChange({ ...value, method, base: next });
   }
 
   return (
@@ -416,11 +439,33 @@ export function AbilityScores({
                 <strong>Point buy:</strong> every score starts at 8 and you spend {options.point_buy.budget} points to raise
                 them, up to 15. Higher scores cost more.
               </p>
+              <p>
+                <strong>Roll:</strong> the app rolls four six-sided dice six times and drops the lowest die each time.
+                The rolls are made once and kept: there are no rerolls. Give each roll to one ability.
+              </p>
               <p>Put your highest score in your class's main ability. Your race adds its bonuses on top.</p>
             </>
           }
         />
       </fieldset>
+      {rollError && (
+        <p className="form-error-summary" role="alert">
+          {rollError}
+        </p>
+      )}
+      {method === "roll" && value.rolls && (
+        <div className="rolled" data-testid="rolled-scores">
+          <p>
+            Your rolls: <strong>{pool.join(", ")}</strong>
+          </p>
+          {roll?.dice && (
+            <p className="muted small" data-testid="rolled-dice">
+              {roll.dice.map((d) => `${d.slice(0, 3).join("+")} (dropped ${d[3]})`).join(" · ")}
+            </p>
+          )}
+          <p className="hint">The rolls are locked: give each one to an ability.</p>
+        </div>
+      )}
       {method === "point-buy" && (
         <p className={`points-left${left < 0 ? " over" : ""}`} data-testid="points-left">
           {left} of {options.point_buy.budget} points left
@@ -445,15 +490,15 @@ export function AbilityScores({
                   <tr key={a.key} data-testid={`ability-row-${a.key}`}>
                     <th scope="row">{a.name}</th>
                     <td>
-                      {method === "standard-array" ? (
+                      {method === "standard-array" || method === "roll" ? (
                         <select
                           aria-label={`${a.name} score`}
                           value={current ?? ""}
                           onChange={(e) => setScore(a.key, e.target.value ? Number(e.target.value) : undefined)}
                         >
                           <option value="">—</option>
-                          {options.standard_array
-                            .filter((n) => mode === "standard" || n === current || used.filter((u) => u === n).length < options.standard_array.filter((x) => x === n).length)
+                          {[...new Set(pool)]
+                            .filter((n) => mode === "standard" || n === current || used.filter((u) => u === n).length < pool.filter((x) => x === n).length)
                             .map((n) => (
                               <option key={n} value={n}>
                                 {n}

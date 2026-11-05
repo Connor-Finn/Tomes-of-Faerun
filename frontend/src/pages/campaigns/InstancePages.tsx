@@ -1,8 +1,18 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { api } from "../../lib/api";
-import { PLAYER_PARTIES_PATH, instanceLine, type Campaign, type InstanceDetail, type InstanceSummary } from "../../lib/campaigns";
-import { BUILD_MODE_LABELS, characterPath, describe, type CharacterSummary } from "../../lib/characters";
+import {
+  PLAYER_PARTIES_PATH,
+  dmCampaignPath,
+  instanceLine,
+  longDate,
+  type Campaign,
+  type InstanceDetail,
+  type InstanceNote,
+  type InstanceSummary,
+} from "../../lib/campaigns";
+import { BUILD_MODE_LABELS, characterPath, describe, type Build, type CharacterSummary } from "../../lib/characters";
+import { SlotView } from "../characters/builderParts";
 import { useFlash } from "../../lib/flash";
 import { ConfirmDialog } from "../bestiary/ConfirmDialog";
 import { BackupPanel, RoadmapPanel } from "./InstanceRoadmap";
@@ -17,8 +27,9 @@ const TABS = [
 type Tab = (typeof TABS)[number]["key"];
 
 /**
- * A character as it stands in one campaign: hit points, the DM's note and the full sheet.
- * The DM reads it (and writes the note); the player also gets hit point and level-up controls.
+ * A character as it stands in one campaign: hit points, the DM's notes and the full sheet.
+ * The DM reads it (and manages it from the control panel); the player also gets hit point and
+ * level-up controls, and can use up items, attune, and change prepared spells.
  */
 export function InstanceView({
   url,
@@ -26,12 +37,15 @@ export function InstanceView({
   dm = false,
   controls,
   onLoaded,
+  playerUrl,
 }: {
   url: string;
   back?: ReactNode;
   dm?: boolean;
   controls?: (detail: InstanceDetail, replace: (d: InstanceDetail) => void) => ReactNode;
   onLoaded?: (d: InstanceDetail | null) => void;
+  /** The player's own character: where to send their changes (items used, prepared spells...). */
+  playerUrl?: string;
 }) {
   const [detail, setDetail] = useState<InstanceDetail | null>(null);
   const [missing, setMissing] = useState(false);
@@ -67,14 +81,14 @@ export function InstanceView({
         {controls?.(detail, setDetail)}
       </div>
       {dm ? (
-        <DmNoteForm detail={detail} onSaved={setDetail} />
+        <p className="row wrap">
+          <Link to={dmCampaignPath(i.campaign.id, `control/${i.id}`)} className="btn primary small">
+            Manage in the control panel
+          </Link>
+          <span className="hint">Set their level or XP, hand out items and spells, and send notes.</span>
+        </p>
       ) : (
-        i.dm_note && (
-          <aside className="dm-note" data-testid="dm-note" aria-label="Note from your Dungeon Master">
-            <p className="dm-note-heading">A note from your Dungeon Master</p>
-            <p>{i.dm_note}</p>
-          </aside>
-        )
+        i.notes.length > 0 && <NoteList notes={i.notes} heading="Notes from your Dungeon Master" />
       )}
 
       <div className="builder-tabs instance-tabs" role="tablist" aria-label="Character pages">
@@ -96,8 +110,21 @@ export function InstanceView({
       <div id="instance-panel" role="tabpanel" aria-labelledby={`instance-tab-${tab}`} className="instance-sheet">
         <ShowPageHeading.Provider value={false}>
           {tab === "sheet" && <SheetPage sheet={detail.sheet} />}
-          {tab === "spellbook" && <SpellbookPage sheet={detail.sheet} />}
-          {tab === "inventory" && <InventoryPage sheet={detail.sheet} />}
+          {tab === "spellbook" && (
+            <>
+              {playerUrl && <SpellControls url={playerUrl} detail={detail} onChange={setDetail} />}
+              <SpellbookPage sheet={detail.sheet} />
+            </>
+          )}
+          {tab === "inventory" && (
+            <>
+              <InventoryPage
+                sheet={detail.sheet}
+                actions={playerUrl ? (item) => <ItemActions url={playerUrl} detail={detail} item={item} onChange={setDetail} /> : undefined}
+              />
+              {playerUrl && <UsedItems url={playerUrl} detail={detail} onChange={setDetail} />}
+            </>
+          )}
           {tab === "features" && <FeaturesPage sheet={detail.sheet} />}
         </ShowPageHeading.Provider>
       </div>
@@ -105,46 +132,220 @@ export function InstanceView({
   );
 }
 
-function DmNoteForm({ detail, onSaved }: { detail: InstanceDetail; onSaved: (d: InstanceDetail) => void }) {
-  const { flash } = useFlash();
-  const i = detail.instance;
-  const [note, setNote] = useState(i.dm_note);
-  const dirty = note !== i.dm_note;
+/** The DM's notes on a character, newest first. */
+export function NoteList({
+  notes,
+  heading,
+  onDelete,
+}: {
+  notes: InstanceNote[];
+  heading: string;
+  onDelete?: (n: InstanceNote) => void;
+}) {
+  return (
+    <aside className="dm-note" data-testid="dm-notes" aria-label={heading}>
+      <p className="dm-note-heading">{heading}</p>
+      <ol className="note-list">
+        {notes.map((n) => (
+          <li key={n.id} data-testid="dm-note">
+            <p className="note-date small muted">{longDate(n.sent_at)}</p>
+            <p>{n.body}</p>
+            {onDelete && (
+              <button type="button" className="btn ghost small" aria-label="Delete this note" onClick={() => onDelete(n)}>
+                Delete
+              </button>
+            )}
+          </li>
+        ))}
+      </ol>
+    </aside>
+  );
+}
 
-  async function onSubmit(e: FormEvent) {
-    e.preventDefault();
-    const res = await api.put<InstanceDetail & { message: string }>(
-      `/api/campaigns/${i.campaign.id}/instances/${i.id}/note`,
-      { note },
-    );
+// ================================================================ Player: items and spells in play
+/** Send a change to the player's own campaign character. Earlier picks are locked on the server. */
+async function patchBuild(url: string, detail: InstanceDetail, patch: Partial<Build>) {
+  return api.patch<InstanceDetail>(url, { build: { ...detail.instance.build, ...patch } });
+}
+
+function ItemActions({
+  url,
+  detail,
+  item,
+  onChange,
+}: {
+  url: string;
+  detail: InstanceDetail;
+  item: InstanceDetail["sheet"]["inventory"][number];
+  onChange: (d: InstanceDetail) => void;
+}) {
+  const { flash } = useFlash();
+  const build = detail.instance.build;
+  const attuned = build.attuned ?? [];
+
+  async function send(patch: Partial<Build>, message: string) {
+    const res = await patchBuild(url, detail, patch);
     if (!res.ok) {
-      flash("error", res.data.errors?.note ?? res.data.error ?? "The note wasn't saved.");
+      flash("error", res.data.error ?? "That didn't work.");
       return;
     }
-    onSaved(res.data);
-    flash("success", res.data.message);
+    onChange(res.data);
+    flash("success", message);
   }
 
   return (
-    <form className="notes-form" onSubmit={onSubmit} aria-label="Your note on this character">
-      <h3 className="leaf-heading">
-        <label htmlFor="instance-note">Your note to {i.player.name}</label>
-      </h3>
-      <p className="hint">The player sees this on their character in this campaign. You can read the sheet, but not change it.</p>
-      <textarea
-        id="instance-note"
-        rows={3}
-        maxLength={2000}
-        value={note}
-        placeholder="A curse they're under, a debt they owe, a reward that's coming…"
-        onChange={(e) => setNote(e.target.value)}
-      />
-      <div className="row end">
-        <button type="submit" className="btn primary small" disabled={!dirty}>
-          Save note
+    <span className="row wrap tight">
+      <button
+        type="button"
+        className="btn ghost small"
+        aria-label={`Use up or drop one ${item.name}`}
+        onClick={() =>
+          void send(
+            { used: { ...(build.used ?? {}), [item.index]: (build.used?.[item.index] ?? 0) + 1 } },
+            `One ${item.name} was used up.`,
+          )
+        }
+      >
+        Use one
+      </button>
+      {item.attunement && (
+        <button
+          type="button"
+          className="btn ghost small"
+          aria-pressed={item.attuned}
+          aria-label={`${item.attuned ? "End attunement to" : "Attune to"} ${item.name}`}
+          onClick={() =>
+            void send(
+              { attuned: item.attuned ? attuned.filter((a) => a !== item.index) : [...attuned, item.index] },
+              item.attuned ? `No longer attuned to ${item.name}.` : `Attuned to ${item.name}.`,
+            )
+          }
+        >
+          {item.attuned ? "End attunement" : "Attune"}
         </button>
-      </div>
-    </form>
+      )}
+    </span>
+  );
+}
+
+function UsedItems({ url, detail, onChange }: { url: string; detail: InstanceDetail; onChange: (d: InstanceDetail) => void }) {
+  const { flash } = useFlash();
+  const used = detail.sheet.used_items;
+  if (used.length === 0) return null;
+  const build = detail.instance.build;
+
+  async function undo(index: string, name: string) {
+    const next = { ...(build.used ?? {}) };
+    next[index] = (next[index] ?? 1) - 1;
+    if (next[index] <= 0) delete next[index];
+    const res = await patchBuild(url, detail, { used: next });
+    if (!res.ok) {
+      flash("error", res.data.error ?? "That didn't work.");
+      return;
+    }
+    onChange(res.data);
+    flash("info", `One ${name} is back in the pack.`);
+  }
+
+  return (
+    <section className="used-items" aria-labelledby="used-heading" data-testid="used-items">
+      <h3 id="used-heading" className="leaf-heading">
+        Used up or dropped
+      </h3>
+      <ul className="plain-list">
+        {used.map((u) => (
+          <li key={u.index} className="row wrap tight">
+            <span>
+              {u.quantity} × {u.name}
+            </span>
+            <button type="button" className="btn ghost small" aria-label={`Put one ${u.name} back`} onClick={() => void undo(u.index, u.name)}>
+              Undo one
+            </button>
+          </li>
+        ))}
+      </ul>
+      <p className="hint">Only your Dungeon Master hands out new items in a campaign.</p>
+    </section>
+  );
+}
+
+function SpellControls({ url, detail, onChange }: { url: string; detail: InstanceDetail; onChange: (d: InstanceDetail) => void }) {
+  const { flash } = useFlash();
+  const prepared = detail.slots.find((s) => s.id === "spells:prepared");
+  const [editing, setEditing] = useState(false);
+  const [picks, setPicks] = useState<string[]>(detail.instance.build.choices?.["spells:prepared"] ?? []);
+  const wizard = detail.instance.build.class === "wizard";
+  const toCopy = wizard ? detail.instance.progress.granted_spells.filter((s) => !s.copied) : [];
+
+  async function savePrepared() {
+    const build = detail.instance.build;
+    const res = await patchBuild(url, detail, { choices: { ...(build.choices ?? {}), "spells:prepared": picks } });
+    if (!res.ok) {
+      const errors = (res.data as unknown as { errors?: { message: string }[] }).errors;
+      flash("error", Array.isArray(errors) && errors[0] ? errors[0].message : res.data.error ?? "Prepared spells weren't saved.");
+      return;
+    }
+    onChange(res.data);
+    setEditing(false);
+    flash("success", "Prepared spells changed.");
+  }
+
+  async function copy(index: string) {
+    const res = await api.post<InstanceDetail & { message: string }>(url.replace(/\/instance$/, "/instance/spellbook"), { spell: index });
+    if (!res.ok) {
+      flash("error", res.data.error ?? res.data.errors?.spell ?? "The spell wasn't copied.");
+      return;
+    }
+    onChange(res.data);
+    flash("success", res.data.message);
+  }
+
+  if (!prepared && toCopy.length === 0) return null;
+  return (
+    <div className="spell-controls" data-testid="spell-controls">
+      {toCopy.length > 0 && (
+        <div className="callout" data-testid="spells-to-copy">
+          <p>Your Dungeon Master gave you spells to copy into your spellbook:</p>
+          <ul className="plain-list">
+            {toCopy.map((s) => (
+              <li key={s.index} className="row wrap tight">
+                <span>
+                  {s.name} <span className="muted small">(level {s.level})</span>
+                </span>
+                <button type="button" className="btn primary small" onClick={() => void copy(s.index)}>
+                  Copy into spellbook
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {prepared && !editing && (
+        <button
+          type="button"
+          className="btn ghost small"
+          onClick={() => {
+            setPicks(detail.instance.build.choices?.["spells:prepared"] ?? []);
+            setEditing(true);
+          }}
+        >
+          Change prepared spells
+        </button>
+      )}
+      {prepared && editing && (
+        <div className="prepared-editor" data-testid="prepared-editor">
+          <SlotView slot={{ ...prepared, selected: picks }} mode={detail.instance.build_mode} selected={picks} onChange={setPicks} />
+          <div className="row end">
+            <button type="button" className="btn ghost small" onClick={() => setEditing(false)}>
+              Cancel
+            </button>
+            <button type="button" className="btn primary small" onClick={() => void savePrepared()}>
+              Save prepared spells
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -156,6 +357,7 @@ export function PlayerCharacterPage({ campaign, onChange }: { campaign: Campaign
   return (
     <InstanceView
       url={url}
+      playerUrl={url}
       controls={(detail, replace) => <PlayerControls campaign={campaign} detail={detail} onChange={replace} onLeft={onChange} />}
     />
   );
@@ -309,10 +511,8 @@ function PlayerControls({
           Long rest
         </button>
       </form>
+      <LevelControls campaign={campaign} detail={detail} onChange={onChange} />
       <div className="row wrap">
-        <Link to={`/play/campaigns/c/${campaign.id}/character/edit`} className="btn primary small">
-          Level up or change
-        </Link>
         <button type="button" className="btn ghost small" onClick={() => setLeaving(true)}>
           Leave with this character
         </button>
@@ -351,6 +551,107 @@ function PlayerControls({
         </ConfirmDialog>
       )}
     </div>
+  );
+}
+
+/** Level Up (Manual campaigns) or the XP counter (XP campaigns). */
+function LevelControls({
+  campaign,
+  detail,
+  onChange,
+}: {
+  campaign: Campaign;
+  detail: InstanceDetail;
+  onChange: (d: InstanceDetail) => void;
+}) {
+  const { flash } = useFlash();
+  const navigate = useNavigate();
+  const i = detail.instance;
+  const p = i.progress;
+  const xpMode = i.rules.levelling === "xp";
+  const [gained, setGained] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const levelUpPath = `/play/campaigns/c/${campaign.id}/character/level-up`;
+
+  async function addXp(e: FormEvent) {
+    e.preventDefault();
+    const res = await api.post<InstanceDetail & { message: string }>(`/api/campaigns/${campaign.id}/instance/xp`, {
+      gained: Number(gained),
+    });
+    if (!res.ok) {
+      setError(res.data.errors?.gained ?? res.data.error ?? "The XP wasn't added.");
+      return;
+    }
+    setError(null);
+    setGained("");
+    onChange(res.data);
+    // Crossing a threshold opens the level-up straight away
+    if (res.data.instance.progress.levels_owed > p.levels_owed) {
+      flash("success", res.data.message, { afterNavigate: true });
+      navigate(levelUpPath);
+    } else {
+      flash("success", res.data.message);
+    }
+  }
+
+  return (
+    <section className="level-controls" aria-labelledby="levelling-heading" data-testid="level-controls">
+      <h3 id="levelling-heading" className="leaf-heading">
+        Levelling: {i.rules.levelling_label.toLowerCase()}
+      </h3>
+      {xpMode && (
+        <>
+          <p data-testid="xp-total">
+            <strong>{p.xp.toLocaleString()} XP</strong>
+            {p.next_level_xp !== null && <span className="muted"> · level {i.level + 1} at {p.next_level_xp.toLocaleString()} XP</span>}
+          </p>
+          {p.next_level_xp !== null && (
+            <div className="xp-bar" aria-hidden="true">
+              <div
+                className="xp-fill"
+                style={{
+                  width: `${Math.min(100, Math.round(((p.xp - p.this_level_xp) / (p.next_level_xp - p.this_level_xp)) * 100))}%`,
+                }}
+              />
+            </div>
+          )}
+          <form className="row wrap" onSubmit={addXp} aria-label="Add experience points">
+            <label className="compact">
+              <span>XP gained</span>
+              <input type="number" min={1} value={gained} onChange={(e) => setGained(e.target.value)} aria-invalid={error ? true : undefined} />
+            </label>
+            <button type="submit" className="btn ghost small" disabled={!gained}>
+              Add XP
+            </button>
+          </form>
+          {error && (
+            <p className="field-error" role="alert">
+              {error}
+            </p>
+          )}
+        </>
+      )}
+      {p.levels_owed > 0 && (
+        <p className="notice" data-testid="levels-owed">
+          {p.levels_owed === 1 ? `Level ${i.level + 1} is ready.` : `${p.levels_owed} level-ups are ready, one at a time.`}
+        </p>
+      )}
+      {p.can_level_up ? (
+        <Link to={levelUpPath} className="btn primary small">
+          Level up to {i.level + 1}
+        </Link>
+      ) : (
+        p.level_up_blocked && (
+          <p className="hint" data-testid="level-up-blocked">
+            {p.level_up_blocked}
+          </p>
+        )
+      )}
+      <p className="hint">
+        Earlier picks are locked in a campaign. Level Up asks only for the new level's choices; hit points come{" "}
+        {i.rules.hp_methods.map((m) => (m === "max" ? "the maximum" : m === "roll" ? "a roll" : "the average")).join(" or ")}.
+      </p>
+    </section>
   );
 }
 

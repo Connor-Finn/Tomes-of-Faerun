@@ -184,13 +184,23 @@ class CampaignCharacterPage(CampaignTomePage):
         self.temp_hp = page.get_by_label("Temporary HP")
         self.update_hp = page.get_by_role("button", name="Update HP")
         self.long_rest = page.get_by_role("button", name="Long rest")
-        self.level_up = page.get_by_role("link", name="Level up or change")
+        self.level_up = page.get_by_role("link", name=re.compile(r"^Level up to \d+$"))
+        self.level_controls = page.get_by_test_id("level-controls")
+        self.xp_total = page.get_by_test_id("xp-total")
+        self.xp_gained = page.get_by_label("XP gained")
+        self.add_xp_button = page.get_by_role("button", name="Add XP")
+        self.levels_owed = page.get_by_test_id("levels-owed")
+        self.level_up_blocked = page.get_by_test_id("level-up-blocked")
         self.leave_button = page.get_by_role("button", name="Leave with this character")
+        self.dm_notes = page.get_by_test_id("dm-notes")
         self.dm_note = page.get_by_test_id("dm-note")
         self.origin = page.get_by_test_id("instance-origin")
+        self.warnings = page.get_by_test_id("sheet-warnings")
+        self.inventory_items = page.get_by_test_id("inventory-item")
+        self.used_items = page.get_by_test_id("used-items")
+        self.spells_to_copy = page.get_by_test_id("spells-to-copy")
         # DM view
-        self.note_box = page.get_by_label(re.compile(r"^Your note to "))
-        self.save_note = page.get_by_role("button", name="Save note")
+        self.manage = page.get_by_role("link", name="Manage in the control panel")
 
     def bring(self, character: str) -> "CampaignCharacterPage":
         self.page.get_by_role("radio", name=re.compile(f"^{character}")).check()
@@ -205,8 +215,122 @@ class CampaignCharacterPage(CampaignTomePage):
     def stat(self, key: str) -> Locator:
         return self.page.get_by_test_id(f"stat-{key}").locator(".stat-value")
 
+    def add_xp(self, amount: int) -> "CampaignCharacterPage":
+        self.xp_gained.fill(str(amount))
+        self.add_xp_button.click()
+        return self
+
+    def item(self, name: str) -> Locator:
+        return self.inventory_items.filter(has=self.page.get_by_role("button", name=name, exact=True))
+
     def set_hp(self, current: int, temp: int = 0) -> "CampaignCharacterPage":
         self.current_hp.fill(str(current))
         self.temp_hp.fill(str(temp))
         self.update_hp.click()
+        return self
+
+
+class LevelUpPage:
+    """Player Mode › a campaign › Your character › Level up: one level, the new picks and hit points."""
+
+    def __init__(self, page: Page):
+        self.page = page
+        self.root = page.get_by_test_id("level-up")
+        self.heading = page.get_by_role("heading", level=1)
+        self.changes = page.get_by_test_id("level-up-changes")
+        self.roadmap_note = page.get_by_test_id("level-up-roadmap")
+        self.no_picks = page.get_by_test_id("no-picks")
+        self.subclass = page.get_by_test_id("level-up-subclass")
+        self.picks_left = page.get_by_test_id("picks-left")
+        self.lock_notice = page.get_by_test_id("lock-notice")
+        self.errors = page.get_by_test_id("level-up-errors")
+        self.blocked = page.get_by_test_id("level-up-blocked")
+        self.confirm_button = page.get_by_role("button", name=re.compile(r"^Level up to \d+$"))
+        self.not_now = page.get_by_role("link", name="Not now")
+
+    def open(self, campaign_id: int) -> "LevelUpPage":
+        self.page.goto(f"/play/campaigns/c/{campaign_id}/character/level-up")
+        return self
+
+    def hp_option(self, method: str) -> Locator:
+        """method: average, roll or max"""
+        return self.page.get_by_test_id(f"hp-{method}")
+
+    def choose_hp(self, method: str) -> "LevelUpPage":
+        """method: average, roll or max. The radio sits under its card, so click the card."""
+        self.hp_option(method).click()
+        expect(self.hp_option(method).get_by_role("radio")).to_be_checked()
+        return self
+
+    def roll_hp(self) -> "LevelUpPage":
+        self.page.get_by_role("button", name=re.compile(r"^Roll a d\d+$")).click()
+        return self
+
+    def choose_subclass(self, name: str) -> "LevelUpPage":
+        self.subclass.locator("label", has_text=name).click()
+        return self
+
+    def slot(self, slot_id: str) -> Locator:
+        return self.page.get_by_test_id(f"level-up-slot-{slot_id}")
+
+    def confirm(self) -> None:
+        self.confirm_button.click()
+
+
+class ControlPanelPage(CampaignTomePage):
+    """DM Mode › a campaign › Control panel: campaign rules, and each player's level, items, spells and notes."""
+
+    def __init__(self, page: Page):
+        super().__init__(page)
+        self.rules_form = page.get_by_role("form", name="Campaign rules")
+        self.save_rules = page.get_by_role("button", name="Save rules")
+        self.players = page.get_by_test_id("control-player")
+        # One player
+        self.level_panel = page.get_by_test_id("level-panel")
+        self.level = page.get_by_role("spinbutton", name="Level", exact=True)
+        self.set_level_button = page.get_by_role("button", name="Set level")
+        self.xp = page.get_by_role("spinbutton", name="XP", exact=True)
+        self.set_xp_button = page.get_by_role("button", name="Set XP")
+        self.item_search = page.get_by_role("searchbox", name="Give an item")
+        self.item_quantity = page.get_by_label("How many")
+        self.inventory = page.get_by_test_id("dm-inventory-item")
+        self.spell_search = page.get_by_role("searchbox", name="Grant a spell")
+        self.granted = page.get_by_test_id("granted-spell")
+        self.note_box = page.get_by_role("textbox", name="Your note")
+        self.send_note_button = page.get_by_role("button", name="Send note")
+        self.notes = page.get_by_test_id("dm-note")
+
+    def open(self, campaign_id: int, instance_id: int | None = None) -> "ControlPanelPage":
+        return self.open_dm(campaign_id, f"control/{instance_id}" if instance_id else "control")
+
+    def set_levelling(self, label: str) -> "ControlPanelPage":
+        self.rules_form.locator("label.choice-card", has_text=label).click()
+        return self
+
+    def hp_method(self, label: str) -> Locator:
+        return self.rules_form.get_by_role("checkbox", name=label, exact=True)
+
+    def manage(self, character: str) -> "ControlPanelPage":
+        self.page.get_by_role("link", name=f"Manage {character}").click()
+        return self
+
+    def set_level(self, level: int) -> "ControlPanelPage":
+        self.level.fill(str(level))
+        self.set_level_button.click()
+        return self
+
+    def give(self, item: str, quantity: int = 1) -> "ControlPanelPage":
+        self.item_quantity.fill(str(quantity))
+        self.item_search.fill(item)
+        self.page.get_by_role("button", name=f"Give {item}", exact=True).click()
+        return self
+
+    def grant(self, spell: str) -> "ControlPanelPage":
+        self.spell_search.fill(spell)
+        self.page.get_by_role("button", name=f"Grant {spell}", exact=True).click()
+        return self
+
+    def send_note(self, text: str) -> "ControlPanelPage":
+        self.note_box.fill(text)
+        self.send_note_button.click()
         return self

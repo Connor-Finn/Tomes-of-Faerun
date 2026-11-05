@@ -2,6 +2,8 @@
 (plus the backup copy) on a character in a campaign."""
 from __future__ import annotations
 
+import re
+
 from playwright.sync_api import Locator, Page
 
 from .guild_hall_page import TomePage
@@ -62,7 +64,7 @@ class InstanceRoadmapPanel:
         self.follow_button = self.roadmap.get_by_role("button", name="Follow", exact=True)
         self.following = page.get_by_test_id("following")
         self.stop_button = page.get_by_role("button", name="Stop following")
-        self.level_up = self.roadmap.get_by_role("button", name="with the roadmap")
+        self.level_up = self.roadmap.get_by_role("link", name=re.compile("with the roadmap"))
         self.ends = page.get_by_test_id("roadmap-ends")
         self.backup = page.get_by_test_id("instance-backup")
         self.backup_summary = page.get_by_test_id("backup-summary")

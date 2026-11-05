@@ -940,3 +940,30 @@ form.bestiary-filters .field.checks { grid-column: 1 / -1; display: flex; flex-w
 .instance-roadmap .leaf-heading, .instance-backup .leaf-heading { margin-top: 0.2rem; }
 .roadmap-rename { align-items: end; gap: 0.6rem; margin-bottom: 0.4rem; }
 .roadmap-rename .field { flex: 1 1 14rem; margin: 0; }
+
+/* ---------------------------------------------------------------- character rules in campaigns */
+.sheet-warnings { list-style: none; margin: 0.4rem 0 1rem; padding: 0.6rem 0.9rem; border: 1px solid rgba(139, 37, 26, 0.45); border-left: 4px solid var(--wax); border-radius: 3px; background: rgba(139, 37, 26, 0.07); }
+.sheet-warnings li { margin: 0.2rem 0; }
+.sheet-warnings li::before { content: "⚠ "; color: var(--wax); }
+.note-list { list-style: none; margin: 0; padding: 0; }
+.note-list li { padding: 0.45rem 0; border-top: 1px dotted rgba(31, 47, 74, 0.3); }
+.note-list li:first-child { border-top: 0; padding-top: 0; }
+.note-list .note-date { margin-bottom: 0.15rem; }
+.level-controls, .used-items, .control-section { border-top: 1px dotted var(--line); padding-top: 0.5rem; margin-top: 0.6rem; }
+.level-controls p { margin: 0.2rem 0 0.4rem; }
+.xp-bar { height: 0.55rem; max-width: 22rem; border-radius: 3px; border: 1px solid rgba(95, 65, 30, 0.45); background: rgba(255, 250, 236, 0.5); overflow: hidden; margin-bottom: 0.5rem; }
+.xp-fill { height: 100%; background: linear-gradient(to bottom, #d2a54e, #a87a22); transition: width 0.3s; }
+.row.tight { gap: 0.4rem; align-items: center; }
+.row-actions { white-space: nowrap; }
+.search-results { margin: 0.3rem 0 0.8rem; max-width: 36rem; list-style: none; padding-left: 0; }
+.search-results li { justify-content: space-between; padding: 0.25rem 0; border-bottom: 1px dotted var(--line); }
+.choice-grid.two { grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); }
+.rolled { padding: 0.5rem 0.8rem; border: 1px dashed rgba(95, 65, 30, 0.45); border-radius: 3px; background: rgba(255, 250, 236, 0.35); margin-bottom: 0.8rem; }
+.rolled p { margin: 0.15rem 0; }
+.level-up-step { margin: 1rem 0; }
+.level-up-changes { margin: 0.3rem 0; padding-left: 1.2rem; }
+.level-up-slot { margin-bottom: 0.8rem; }
+.hp-methods { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: 0.6rem; }
+.hp-methods .choice-card .btn { margin-top: 0.4rem; justify-self: start; }
+.spell-controls { margin-bottom: 0.8rem; }
+.prepared-editor { margin-top: 0.6rem; }

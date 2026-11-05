@@ -25,6 +25,7 @@ import { MODE_LABELS, useEnterMode, type Mode } from "../../lib/mode";
 import { ConfirmDialog } from "../bestiary/ConfirmDialog";
 import { PageHeading } from "../characters/CharacterTome";
 import { StatusPill } from "./CampaignLists";
+import { DmControlPanel, DmPlayerControl } from "./ControlPanel";
 import { HpBar, InstanceView, PlayerCharacterPage } from "./InstancePages";
 
 /**
@@ -34,6 +35,7 @@ import { HpBar, InstanceView, PlayerCharacterPage } from "./InstancePages";
 const DM_PAGES = [
   { slug: "overview", title: "Overview" },
   { slug: "party", title: "Party" },
+  { slug: "control", title: "Control panel" },
   { slug: "sessions", title: "Session log" },
   { slug: "encounters", title: "Encounters" },
   { slug: "notes", title: "DM notes" },
@@ -126,6 +128,8 @@ export function CampaignTome({ mode }: { mode: Mode }) {
         {mode === "dm" && page?.slug === "overview" && <DmOverview {...props} />}
         {mode === "dm" && page?.slug === "party" && !sub && <DmPartyPage {...props} />}
         {mode === "dm" && page?.slug === "party" && sub && <DmPlayerCharacter campaign={campaign} instanceId={Number(sub)} />}
+        {mode === "dm" && page?.slug === "control" && !sub && <DmControlPanel campaign={campaign} onChange={setCampaign} />}
+        {mode === "dm" && page?.slug === "control" && sub && <DmPlayerControl campaign={campaign} instanceId={Number(sub)} />}
         {mode === "dm" && page?.slug === "sessions" && <DmSessions {...props} />}
         {mode === "dm" && page?.slug === "encounters" && <DmEncounters {...props} />}
         {mode === "dm" && page?.slug === "notes" && <DmNotes {...props} />}
@@ -352,7 +356,7 @@ function DmPartyPage({ campaign, onChange }: PageProps) {
     <section aria-labelledby="page-title" data-testid="campaign-party">
       <PageHeading
         title="Party"
-        summary="The players in this campaign and the characters they brought. You can read their sheets and leave each one a note, but only the player changes their character."
+        summary="The players in this campaign and the characters they brought. You can read their sheets, and look after them from the control panel, but only the player makes their character's choices."
       />
       {campaign.party ? (
         <div className="row between wrap">
@@ -393,9 +397,9 @@ function DmPartyPage({ campaign, onChange }: PageProps) {
                           <span className="muted small">{instanceLine(inst)}</span>
                         </p>
                         <HpBar instance={inst} />
-                        {inst.dm_note && (
+                        {inst.latest_note && (
                           <p className="small dm-note-preview" data-testid="note-preview">
-                            <strong>Your note:</strong> {inst.dm_note}
+                            <strong>Your latest note:</strong> {inst.latest_note.body}
                           </p>
                         )}
                       </>
