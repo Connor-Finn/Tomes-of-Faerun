@@ -208,6 +208,24 @@ function ItemActions({
       >
         Use one
       </button>
+      {item.category === "Armor" && (
+        <button
+          type="button"
+          className="btn ghost small"
+          aria-pressed={item.equipped}
+          aria-label={`${item.equipped ? "Take off" : "Wear"} ${item.name}`}
+          onClick={() => {
+            const slot = item.index === "shield" ? "shield" : "armor";
+            const equipped = { armor: detail.sheet.equipped.armor, shield: detail.sheet.equipped.shield };
+            void send(
+              { equipped: { ...equipped, [slot]: item.equipped ? null : item.index } },
+              item.equipped ? `${item.name} taken off.` : `Wearing ${item.name}.`,
+            );
+          }}
+        >
+          {item.equipped ? "Take off" : "Wear"}
+        </button>
+      )}
       {item.attunement && (
         <button
           type="button"
