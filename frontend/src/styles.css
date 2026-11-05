@@ -746,6 +746,7 @@ form.bestiary-filters .field.checks { grid-column: 1 / -1; display: flex; flex-w
 
 /* Hit points: a bar of red ink that drains as the character is hurt */
 .hp-bar { position: relative; height: 1.6rem; border-radius: 3px; border: 1px solid rgba(95, 65, 30, 0.45); background: rgba(255, 250, 236, 0.5); overflow: hidden; max-width: 22rem; }
+.row > .hp-bar { flex: 1 1 14rem; }
 .hp-fill { position: absolute; inset: 0 auto 0 0; background: linear-gradient(to bottom, #8fae6a, var(--moss)); transition: width 0.3s; }
 .hp-fill.mid { background: linear-gradient(to bottom, #d2a54e, #a87a22); }
 .hp-fill.low { background: linear-gradient(to bottom, #c4554a, var(--wax)); }
