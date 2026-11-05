@@ -11,10 +11,10 @@ import re
 import pytest
 from playwright.sync_api import Browser, Page, expect
 
-from builds import aldric, autofill
+from builds import aldric, autofill, level_up
 from conftest import API_HEADERS
-from pages import (CampaignCharacterPage, CampaignTomePage, CharacterPage, DmCampaignsPage, GuildHallPage, LoginPage,
-                   PartiesPage)
+from pages import (CampaignCharacterPage, CampaignTomePage, CharacterPage, ControlPanelPage, DmCampaignsPage, GuildHallPage,
+                   LevelUpPage, LoginPage, PartiesPage)
 
 
 # ------------------------------------------------------------------ helpers
@@ -69,7 +69,7 @@ def test_start_a_campaign_from_the_guild_hall(logged_in_page: Page):
     expect(logged_in_page).to_have_url(re.compile(r"/dm/campaigns/c/\d+/overview$"))
     expect(logged_in_page.get_by_test_id("flash-success").last).to_contain_text("The Whispering Dead is ready.")
     expect(tome.title).to_have_text("The Whispering Dead")
-    expect(tome.entries).to_have_text(["Overview", "Party", "Session log", "Encounters", "DM notes"])
+    expect(tome.entries).to_have_text(["Overview", "Party", "Control panel", "Session log", "Encounters", "DM notes"])
     expect(tome.status).to_have_text("Planning")
 
 
@@ -306,16 +306,18 @@ def test_level_up_in_the_campaign_only(table: dict, player_page: Page):
     you = CampaignCharacterPage(player_page).open_player(table["id"], "character")
     you.level_up.click()
 
-    expect(player_page).to_have_url(re.compile(rf"/play/campaigns/c/{table['id']}/character/edit$"))
-    expect(player_page.get_by_role("heading", level=1)).to_have_text("Levelling up Aldric Vane")
-    expect(player_page.get_by_test_id("campaign-builder-note")).to_contain_text(
-        "Your character in the Character Manager stays as it is.")
-    player_page.get_by_label("Level", exact=True).select_option("2")
-    expect(player_page.get_by_test_id("builder-status")).to_have_text(re.compile("Complete|choice"))
-    player_page.get_by_role("button", name="Save changes").click()
+    expect(player_page).to_have_url(re.compile(rf"/play/campaigns/c/{table['id']}/character/level-up$"))
+    levelling = LevelUpPage(player_page)
+    expect(levelling.heading).to_have_text("Aldric Vane reaches level 2")
+    expect(levelling.changes).to_contain_text("New feature: Action Surge (1 use).")
+    expect(levelling.no_picks).to_be_visible()   # fighters choose nothing at level 2
+    expect(levelling.confirm_button).to_be_disabled()   # until hit points are chosen
+    levelling.choose_hp("average")
+    levelling.confirm()
 
     expect(player_page).to_have_url(re.compile(rf"/play/campaigns/c/{table['id']}/character$"))
-    expect(player_page.get_by_test_id("flash-success").last).to_have_text("Aldric Vane is now level 2 in The Whispering Dead.")
+    expect(player_page.get_by_test_id("flash-success").last).to_have_text(
+        "Aldric Vane is now level 2 in The Whispering Dead and gained 8 hit points.")
     expect(player_page.locator(".page-summary").first).to_contain_text("Level 2 Human Fighter")
 
     # The base character didn't move
@@ -325,16 +327,23 @@ def test_level_up_in_the_campaign_only(table: dict, player_page: Page):
     expect(player_page.get_by_test_id("character-campaign")).to_contain_text("Level 2 Human Fighter")
 
 
-def test_an_unfinished_level_up_is_refused(table: dict, player_page: Page):
+def test_a_level_up_waits_for_its_new_picks(table: dict, player_page: Page):
     character = give_character(player_page)
     post(player_page, f"/api/campaigns/{table['id']}/instance", {"character_id": character["id"]})
-    player_page.goto(f"/play/campaigns/c/{table['id']}/character/edit")
-    player_page.get_by_label("Level", exact=True).select_option("3")  # fighters pick a subclass at 3
-    player_page.get_by_role("button", name="Save changes").click()
-    expect(player_page.get_by_test_id("builder-errors")).to_contain_text("Choose a subclass.")
+    level_up(player_page.request, f"/api/campaigns/{table['id']}", 2, headers=API_HEADERS)
+
+    levelling = LevelUpPage(player_page).open(table["id"])
+    expect(levelling.heading).to_have_text("Aldric Vane reaches level 3")
+    levelling.choose_hp("average")
+    expect(levelling.picks_left).to_have_text("1 choice left")   # fighters pick a subclass at 3
+    expect(levelling.confirm_button).to_be_disabled()
+    levelling.choose_subclass("Champion")
+    expect(levelling.picks_left).to_have_count(0)
+    levelling.confirm()
+    expect(player_page.locator(".page-summary").first).to_contain_text("Level 3 Human Fighter (Champion)")
 
 
-def test_the_dm_reads_the_sheet_and_leaves_a_note(table: dict, logged_in_page: Page, player_page: Page):
+def test_the_dm_reads_the_sheet_and_sends_notes(table: dict, logged_in_page: Page, player_page: Page):
     character = give_character(player_page)
     post(player_page, f"/api/campaigns/{table['id']}/instance", {"character_id": character["id"]})
 
@@ -347,14 +356,20 @@ def test_the_dm_reads_the_sheet_and_leaves_a_note(table: dict, logged_in_page: P
     expect(sheet.page_title).to_have_text("Aldric Vane")
     expect(sheet.update_hp).to_have_count(0)  # the DM can read, not change
     expect(sheet.level_up).to_have_count(0)
-    sheet.note_box.fill("The ghoul's claw left a mark that won't heal.")
-    sheet.save_note.click()
-    expect(logged_in_page.get_by_test_id("flash-success").last).to_have_text("Your note on Aldric Vane was saved.")
+    sheet.manage.click()
 
-    # The player sees the note on their character
+    panel = ControlPanelPage(logged_in_page)
+    expect(panel.page_title).to_have_text("Aldric Vane")
+    panel.send_note("The ghoul's claw left a mark that won't heal.")
+    expect(logged_in_page.get_by_test_id("flash-success").last).to_have_text("Your note was sent to Mira Thorn.")
+    panel.send_note("Your brother's ship docks at dawn.")
+    expect(panel.notes).to_have_count(2)
+
+    # The player reads them as a list, newest first
     you = CampaignCharacterPage(player_page).open_player(table["id"], "character")
-    expect(you.dm_note).to_contain_text("A note from your Dungeon Master")
-    expect(you.dm_note).to_contain_text("The ghoul's claw left a mark that won't heal.")
+    expect(you.dm_notes).to_contain_text("Notes from your Dungeon Master")
+    expect(you.dm_note).to_have_count(2)
+    expect(you.dm_note.first).to_contain_text("Your brother's ship docks at dawn.")
 
 
 def test_leave_the_campaign_with_a_character(table: dict, player_page: Page):

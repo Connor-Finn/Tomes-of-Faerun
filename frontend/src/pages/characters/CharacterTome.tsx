@@ -258,6 +258,15 @@ export function SheetPage({ sheet, notice }: { sheet: Sheet; notice?: ReactNode 
     <section aria-labelledby="page-title" className="sheet" data-testid="character-sheet">
       <PageHeading title="Character sheet" />
       {notice}
+      {sheet.warnings.length > 0 && (
+        <ul className="sheet-warnings" aria-label="Rules warnings" data-testid="sheet-warnings">
+          {sheet.warnings.map((w) => (
+            <li key={w.code} data-code={w.code}>
+              {w.message}
+            </li>
+          ))}
+        </ul>
+      )}
       <dl className="sheet-identity">
         {[
           ["Race", s.subrace ?? s.race],
@@ -461,7 +470,18 @@ export function SpellbookPage({ sheet, editPath }: { sheet: Sheet; editPath?: st
   );
 }
 
-export function InventoryPage({ sheet, editPath }: { sheet: Sheet; editPath?: string }) {
+type InventoryRow = Sheet["inventory"][number];
+
+export function InventoryPage({
+  sheet,
+  editPath,
+  actions,
+}: {
+  sheet: Sheet;
+  editPath?: string;
+  /** Buttons for each item, e.g. using one up in a campaign. */
+  actions?: (item: InventoryRow) => ReactNode;
+}) {
   const weight = sheet.inventory.reduce((sum, i) => sum + (i.weight ?? 0) * i.quantity, 0);
   const [reading, setReading] = useState<string | null>(null);
   const { isFavourite, toggle } = useFavouriteItems();
@@ -493,6 +513,11 @@ export function InventoryPage({ sheet, editPath }: { sheet: Sheet; editPath?: st
                 <th scope="col">Qty</th>
                 <th scope="col">Type</th>
                 <th scope="col">Weight</th>
+                {actions && (
+                  <th scope="col">
+                    <span className="sr-only">Actions</span>
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody>
@@ -517,7 +542,12 @@ export function InventoryPage({ sheet, editPath }: { sheet: Sheet; editPath?: st
                         {i.added === i.quantity ? "Added by you" : `${i.added} added by you`}
                       </span>
                     )}
-                    {i.attunement && <span className="pill">Attunement</span>}
+                    {i.given > 0 && (
+                      <span className="pill" title="Handed out by your Dungeon Master">
+                        {i.given === i.quantity ? "From your DM" : `${i.given} from your DM`}
+                      </span>
+                    )}
+                    {i.attunement && <span className={`pill${i.attuned ? " active" : ""}`}>{i.attuned ? "Attuned" : "Attunement"}</span>}
                     {i.contents.length > 0 && (
                       <details className="pack-contents">
                         <summary>What's inside</summary>
@@ -528,11 +558,12 @@ export function InventoryPage({ sheet, editPath }: { sheet: Sheet; editPath?: st
                   <td>{i.quantity}</td>
                   <td>{i.rarity ? `${i.category}, ${i.rarity === "Varies" ? "rarity varies" : i.rarity.toLowerCase()}` : i.category}</td>
                   <td>{i.weight != null ? `${i.weight * i.quantity} lb` : "—"}</td>
+                  {actions && <td className="row-actions">{actions(i)}</td>}
                 </tr>
                 {reading === i.index && (
                   <tr className="reader-row" data-testid="inventory-reader">
                     <td />
-                    <td colSpan={4}>
+                    <td colSpan={actions ? 5 : 4}>
                       <ItemReader index={i.index} kind={i.kind} />
                     </td>
                   </tr>

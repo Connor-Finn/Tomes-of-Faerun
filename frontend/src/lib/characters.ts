@@ -20,12 +20,33 @@ export interface Build {
   subclass?: string | null;
   background?: string | null;
   alignment?: string | null;
-  ability_scores?: { method?: string; base?: Partial<Record<Ability, number>> } | null;
+  ability_scores?: {
+    method?: string;
+    base?: Partial<Record<Ability, number>>;
+    /** Rolled scores only: the six rolls the app made, and which roll they were. */
+    rolls?: number[];
+    roll_id?: number;
+  } | null;
   choices?: Record<string, string[]>;
   equipped?: { armor?: string | null; shield?: string | null } | null;
   /** Items added from the catalogue on top of the starting kit: index -> quantity. */
   items?: Record<string, number>;
+  /** Magic items the character is attuned to. */
+  attuned?: string[];
   notes?: Partial<Record<NoteField, string>>;
+  /** Campaign characters only (the campaign API manages these): */
+  hp_levels?: Record<string, { method: HpMethod; die: number }>;
+  given?: Record<string, number>;
+  used?: Record<string, number>;
+  granted_spells?: string[];
+}
+
+export type HpMethod = "average" | "roll" | "max";
+
+export interface AbilityRoll {
+  id: number;
+  rolls: number[];
+  dice: number[][];
 }
 
 export interface CharacterSummary {
@@ -102,10 +123,16 @@ export interface Sheet {
   hit_points: number;
   hit_points_note: string | null;
   hit_dice: string;
+  hit_point_levels: { level: number; method: HpMethod; die: number; gain: number }[];
   armor_class: number;
   armor_class_note: string;
   initiative: number;
   speed: number;
+  /** Rule-bending gear: allowed, but flagged with the SRD's penalty. */
+  warnings: { code: string; message: string }[];
+  attuned: string[];
+  max_attuned: number;
+  used_items: { index: string; name: string; quantity: number }[];
   passive_perception: number;
   saving_throws: Ability[];
   skills: { index: string; name: string; ability: Ability; proficient: boolean; expertise: boolean; bonus: number }[];
@@ -131,8 +158,12 @@ export interface Sheet {
     equipped: boolean;
     /** How many of these the player added from the catalogue (the rest came with the starting kit). */
     added: number;
+    /** How many the DM handed out in a campaign, and how many were used up or dropped. */
+    given: number;
+    used: number;
     rarity: string | null;
     attunement: boolean | null;
+    attuned: boolean;
     contents: { name: string; quantity: number }[];
   }[];
   gold: number;
@@ -203,6 +234,7 @@ export interface CharacterOptions {
   alignments: { index: string; name: string; desc: string }[];
   abilities: { key: Ability; name: string }[];
   ability_methods: { value: string; label: string }[];
+  hp_methods: { value: HpMethod; label: string }[];
   standard_array: number[];
   point_buy: { budget: number; costs: Record<string, number> };
   build_modes: BuildMode[];

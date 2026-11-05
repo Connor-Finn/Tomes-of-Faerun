@@ -21,11 +21,19 @@ Build shape (all indexes are SRD `index` slugs):
       "name": "Aldric Vane", "level": 1,
       "race": "human", "subrace": null, "class": "fighter", "subclass": null,
       "background": "acolyte", "alignment": "lawful-good",
-      "ability_scores": {"method": "standard-array" | "point-buy", "base": {"str": 15, ...}},
+      "ability_scores": {"method": "standard-array" | "point-buy" | "roll", "base": {"str": 15, ...},
+                         "rolls": [14, 12, ...], "roll_id": 7},       # roll only: the app's six rolls
       "choices": {"<slot id>": ["<value>", ...]},
       "equipped": {"armor": "chain-mail", "shield": "shield"},
       "items": {"bag-of-holding": 1, "torch": 5},   # extras added from the items catalogue
-      "notes": {"personality": "...", "ideal": "...", "bond": "...", "flaw": "...", "backstory": "..."}
+      "attuned": ["cloak-of-protection"],           # magic items the character is attuned to
+      "notes": {"personality": "...", "ideal": "...", "bond": "...", "flaw": "...", "backstory": "..."},
+
+      # Campaign characters only (the campaign API manages these; base characters never have them):
+      "hp_levels": {"2": {"method": "roll", "die": 7}},  # hit points gained at each level (average if absent)
+      "given": {"potion-of-healing": 2},            # items the DM handed out
+      "used": {"torch": 3},                         # items used up, sold or dropped
+      "granted_spells": ["identify"]                # spells the DM granted (a wizard copies them into the book)
     }
 """
 from __future__ import annotations
@@ -45,7 +53,11 @@ ABILITY_NAMES = {
 STANDARD_ARRAY = [15, 14, 13, 12, 10, 8]
 POINT_BUY_COST = {8: 0, 9: 1, 10: 2, 11: 3, 12: 4, 13: 5, 14: 7, 15: 9}
 POINT_BUY_BUDGET = 27
-ABILITY_METHODS = {"standard-array": "Standard array", "point-buy": "Point buy"}
+ABILITY_METHODS = {"standard-array": "Standard array", "point-buy": "Point buy", "roll": "Rolled (4d6, drop the lowest)"}
+HP_METHODS = {"average": "Average", "roll": "Roll", "max": "Maximum"}
+MAX_ATTUNED = 3
+# Keys only a campaign character has. The Character Manager strips them from base characters.
+CAMPAIGN_KEYS = ("hp_levels", "given", "used", "granted_spells")
 MAX_LEVEL = 20
 MAX_SCORE = 20
 BUILD_MODES = ("easy", "standard")
@@ -244,6 +256,11 @@ class Analysis:
     inventory: dict[str, int] = field(default_factory=dict)      # equipment index -> quantity
     magic_items: dict[str, int] = field(default_factory=dict)    # magic item index -> quantity
     added: dict[str, int] = field(default_factory=dict)          # the extras the player added
+    given: dict[str, int] = field(default_factory=dict)          # items the DM handed out (campaigns)
+    used: dict[str, int] = field(default_factory=dict)           # items used up or dropped (campaigns)
+    attuned: list[str] = field(default_factory=list)
+    granted_spells: list[str] = field(default_factory=list)      # DM-granted spells that count
+    hp_dice: dict[int, tuple[str, int]] = field(default_factory=dict)  # level -> (method, hit die result)
     stale: list[str] = field(default_factory=list)
 
     @property
@@ -298,10 +315,45 @@ def analyse(build: dict) -> Analysis:
     _ability_scores(a)   # needs racial bonuses; ASIs are added on top in _features
     _features(a)
     _spells(a)
+    _granted_extra(a)
     _invocations(a)
     _equipment(a)
+    _hit_point_levels(a)
     _prune_stale(a)
     return a
+
+
+def average_die(hit_die: int) -> int:
+    return hit_die // 2 + 1
+
+
+def _hit_point_levels(a: Analysis) -> None:
+    """How many hit points each level after the first gave. Outside campaigns it's always the average."""
+    raw = a.build.get("hp_levels")
+    if not raw:
+        return
+    if not isinstance(raw, dict):
+        a.error("hp_levels", "Hit points per level must be an object.")
+        return
+    hit_die = a.cls["hit_die"] if a.cls else 8
+    for key, entry in raw.items():
+        lvl = int(key) if str(key).isdigit() else 0
+        if not 2 <= lvl <= MAX_LEVEL:
+            a.error(f"hp_levels.{key}", "Hit points per level are recorded for levels 2 to 20.")
+            continue
+        if lvl > a.level:
+            a.stale.append(f"hp_levels.{key}")
+            continue
+        method = entry.get("method") if isinstance(entry, dict) else None
+        die = entry.get("die") if isinstance(entry, dict) else None
+        if method not in HP_METHODS or isinstance(die, bool) or not isinstance(die, int) or not 1 <= die <= hit_die:
+            a.error(f"hp_levels.{key}", f"Level {lvl}: hit points are the average, the maximum or a d{hit_die} roll.")
+        elif method == "average" and die != average_die(hit_die):
+            a.error(f"hp_levels.{key}", f"Level {lvl}: the average of a d{hit_die} is {average_die(hit_die)}.")
+        elif method == "max" and die != hit_die:
+            a.error(f"hp_levels.{key}", f"Level {lvl}: the maximum of a d{hit_die} is {hit_die}.")
+        else:
+            a.hp_dice[lvl] = (method, die)
 
 
 # ----------------------------------------------------------------- identity
@@ -489,7 +541,7 @@ def _ability_scores(a: Analysis) -> None:
         a.need("ability_scores", "Assign your ability scores.")
         return
     if method not in ABILITY_METHODS:
-        a.error("ability_scores", "Use the standard array or point buy.")
+        a.error("ability_scores", "Use the standard array, point buy or rolled scores.")
         return
     if not isinstance(base, dict) or set(base) != set(ABILITIES) or \
             not all(isinstance(v, int) and not isinstance(v, bool) for v in base.values()):
@@ -498,6 +550,15 @@ def _ability_scores(a: Analysis) -> None:
     if method == "standard-array" and sorted(base.values(), reverse=True) != STANDARD_ARRAY:
         a.error("ability_scores", "The standard array is 15, 14, 13, 12, 10 and 8, each used once.")
         return
+    if method == "roll":
+        rolls = data.get("rolls")
+        if not isinstance(rolls, list) or len(rolls) != 6 or \
+                not all(isinstance(r, int) and not isinstance(r, bool) and 3 <= r <= 18 for r in rolls):
+            a.error("ability_scores", "Rolled scores need the six rolls the app made for you.")
+            return
+        if sorted(base.values()) != sorted(rolls):
+            a.error("ability_scores", f"Use each of your rolls ({', '.join(map(str, sorted(rolls, reverse=True)))}) once.")
+            return
     if method == "point-buy":
         if any(v not in POINT_BUY_COST for v in base.values()):
             a.error("ability_scores", "With point buy each score starts between 8 and 15.")
@@ -672,11 +733,18 @@ def _spells(a: Analysis) -> None:
                              f"up to level {casting.max_spell_level}."))
     if cls == "wizard":
         size = 6 + 2 * (a.level - 1)
-        book = a.add_slot(Slot("spells:spellbook", "spells", "Spellbook", size,
-                               [_spell_option(s, cls, casting.max_spell_level) for s in leveled], kind="spell",
+        copied = _granted(a, casting)
+        book_options = []
+        for s in leveled:
+            o = _spell_option(s, cls, casting.max_spell_level)
+            if s["index"] in copied and not o.get("denied"):
+                o["denied"] = "You already copied it into your spellbook."
+            book_options.append(o)
+        book = a.add_slot(Slot("spells:spellbook", "spells", "Spellbook", size, book_options, kind="spell",
                                help=f"Your spellbook starts with six level 1 wizard spells and gains two each level: "
-                                    f"{size} at level {a.level}."))
-        in_book = set(a.valid_picks(book))
+                                    f"{size} at level {a.level}." + (f" Spells your DM gave you are copied in on top."
+                                                                     if copied else "")))
+        in_book = set(a.valid_picks(book)) | set(copied)
         prep = _prepared_count(a, casting)
         a.add_slot(Slot("spells:prepared", "spells", "Prepared spells", prep,
                         [option(s["index"], s["name"], None if s["index"] in in_book else "It isn't in your spellbook.",
@@ -709,6 +777,46 @@ def _spells(a: Analysis) -> None:
         for entry in a.subclass.get("spells", []):
             if all(_prereq_met(a, p) for p in entry.get("prerequisites", [])):
                 a.extra_spells.append((entry["spell"]["index"], a.subclass["name"]))
+
+
+def _granted_list(a: Analysis) -> list[str]:
+    raw = a.build.get("granted_spells")
+    if not raw:
+        return []
+    if not isinstance(raw, list):
+        a.error("granted_spells", "Granted spells must be a list.")
+        return []
+    return list(dict.fromkeys(str(i) for i in raw))
+
+
+def _granted(a: Analysis, casting: Casting) -> list[str]:
+    """A wizard's spells copied into the spellbook from scrolls and books the DM handed out."""
+    out = []
+    for index in _granted_list(a):
+        spell = rules.get("spells", index)
+        if not spell:
+            a.error(f"granted_spells.{index}", f"There's no spell called “{index}”.")
+        elif "wizard" not in spell_classes(spell) or spell["level"] == 0:
+            a.error(f"granted_spells.{index}", f"{spell['name']}: only levelled wizard spells can be copied into a spellbook.")
+        elif spell["level"] > casting.max_spell_level:
+            a.error(f"granted_spells.{index}", f"{spell['name']}: you can't copy level {spell['level']} spells yet.")
+        else:
+            out.append(index)
+    a.granted_spells = out
+    return out
+
+
+def _granted_extra(a: Analysis) -> None:
+    """Everyone but wizards: a spell the DM granted is simply known (and always prepared)."""
+    if a.cls and a.cls["index"] == "wizard" and casting_info(a):
+        return
+    for index in _granted_list(a):
+        spell = rules.get("spells", index)
+        if not spell:
+            a.error(f"granted_spells.{index}", f"There's no spell called “{index}”.")
+        else:
+            a.granted_spells.append(index)
+            a.extra_spells.append((index, "Granted by your DM"))
 
 
 def _prepared_count(a: Analysis, casting: Casting) -> int:
@@ -768,7 +876,10 @@ def _equipment(a: Analysis) -> None:
     for key, owner, opts in sources:
         _equipment_slot(a, f"equipment:{key}", owner, opts)
     _extra_items(a)
+    _given_items(a)
+    _used_items(a)
     _equipped(a)
+    _attuned(a)
 
 
 def _extra_items(a: Analysis) -> None:
@@ -801,6 +912,72 @@ def _extra_items(a: Analysis) -> None:
         a.added[index] = qty
         target = a.inventory if equipment else a.magic_items
         target[index] = target.get(index, 0) + qty
+
+
+def _item_counts(a: Analysis, key: str, label: str) -> dict[str, int]:
+    """A {item index: quantity} field of the build, checked. Bad entries are reported and skipped."""
+    raw = a.build.get(key)
+    if not raw:
+        return {}
+    if not isinstance(raw, dict):
+        a.error(key, f"{label} must be an object of item index to quantity.")
+        return {}
+    out = {}
+    for index, qty in raw.items():
+        item = rules.get("equipment", index) or rules.get("magic-items", index)
+        if not item:
+            a.error(f"{key}.{index}", f"There's no item called “{index}” in the catalogue.")
+        elif isinstance(qty, bool) or not isinstance(qty, int) or not 1 <= qty <= MAX_ITEM_QUANTITY:
+            a.error(f"{key}.{index}", f"{item['name']}: the quantity must be a whole number from 1 to {MAX_ITEM_QUANTITY}.")
+        else:
+            out[index] = qty
+    return out
+
+
+def _given_items(a: Analysis) -> None:
+    """Items the Dungeon Master handed out in a campaign (house rule: only the DM adds items there)."""
+    for index, qty in _item_counts(a, "given", "Items from your DM").items():
+        a.given[index] = qty
+        target = a.inventory if rules.get("equipment", index) else a.magic_items
+        target[index] = target.get(index, 0) + qty
+
+
+def _used_items(a: Analysis) -> None:
+    """Items a campaign character used up, sold or dropped: taken off what they own."""
+    for index, qty in _item_counts(a, "used", "Used items").items():
+        target = a.inventory if index in a.inventory else a.magic_items
+        owned = target.get(index, 0)
+        if qty > owned:
+            name = name_of("equipment", index) if rules.get("equipment", index) else name_of("magic-items", index)
+            a.error(f"used.{index}", f"{name}: you only have {owned}.")
+            continue
+        a.used[index] = qty
+        if qty == owned:
+            del target[index]
+        else:
+            target[index] = owned - qty
+
+
+def _attuned(a: Analysis) -> None:
+    """Magic items the character is attuned to. More than three is allowed but flagged on the sheet."""
+    raw = a.build.get("attuned")
+    if not raw:
+        return
+    if not isinstance(raw, list):
+        a.error("attuned", "Attuned items must be a list.")
+        return
+    for index in dict.fromkeys(str(i) for i in raw):
+        item = rules.get("magic-items", index)
+        if not item or not requires_attunement(item):
+            a.error(f"attuned.{index}", f"{name_of('magic-items', index) if item else index} doesn't need attunement.")
+        elif index not in a.magic_items:
+            a.stale.append(f"attuned.{index}")   # no longer carried: dropped on save
+        else:
+            a.attuned.append(index)
+
+
+def requires_attunement(item: dict) -> bool:
+    return "(requires attunement" in (item.get("desc") or [""])[0]
 
 
 def _bundle(o: dict) -> tuple[list[tuple[str, int]], list[dict], str]:
@@ -883,7 +1060,7 @@ def _prune_stale(a: Analysis) -> None:
 def clean(build: dict) -> dict:
     """A copy of the build with stale choices removed and unknown keys dropped."""
     keep = ("name", "level", "race", "subrace", "class", "subclass", "background", "alignment",
-            "ability_scores", "choices", "equipped", "items", "notes")
+            "ability_scores", "choices", "equipped", "items", "attuned", "notes", *CAMPAIGN_KEYS)
     out = {k: build.get(k) for k in keep if k in build}
     out["name"] = str(out.get("name") or "").strip()
     out.setdefault("level", 1)
@@ -894,6 +1071,10 @@ def clean(build: dict) -> dict:
             out["choices"].pop(path[len("choices."):], None)
         elif path.startswith("equipped."):
             out["equipped"] = {**out["equipped"], path[len("equipped."):]: None}
+        elif path.startswith("attuned."):
+            out["attuned"] = [i for i in out["attuned"] if i != path[len("attuned."):]]
+        elif path.startswith("hp_levels."):
+            out["hp_levels"] = {k: v for k, v in out["hp_levels"].items() if k != path[len("hp_levels."):]}
         else:
             out[path] = None
     if "equipped" not in build:
@@ -954,7 +1135,11 @@ def sheet(a: Analysis) -> dict:
     perception = next(s["bonus"] for s in skill_rows if s["index"] == "perception")
 
     hit_die = a.cls["hit_die"] if a.cls else 8
-    hp = hit_die + mods["con"] + sum(max(1, hit_die // 2 + 1 + mods["con"]) for _ in range(a.level - 1))
+    hp_levels = [{"level": 1, "method": "max", "die": hit_die, "gain": hit_die + mods["con"]}]
+    for lvl in range(2, a.level + 1):
+        method, die = a.hp_dice.get(lvl, ("average", average_die(hit_die)))
+        hp_levels.append({"level": lvl, "method": method, "die": die, "gain": max(1, die + mods["con"])})
+    hp = sum(x["gain"] for x in hp_levels)
     hp_notes = []
     if "dwarven-toughness" in a.traits:
         hp += a.level
@@ -974,6 +1159,7 @@ def sheet(a: Analysis) -> dict:
         speed += (class_levels("monk").get(a.level, {}).get("class_specific") or {}).get("unarmored_movement", 0)
     if "fast-movement" in feature_ids and not (armor and armor.get("armor_category") == "Heavy"):
         speed += 10
+    warnings, speed = _gear_warnings(a, scores, armor, shield, speed, inventory)
 
     return {
         "summary": {
@@ -989,10 +1175,16 @@ def sheet(a: Analysis) -> dict:
         "hit_points": hp,
         "hit_points_note": ", ".join(hp_notes) or None,
         "hit_dice": f"{a.level}d{hit_die}",
+        "hit_point_levels": hp_levels,
         "armor_class": ac,
         "armor_class_note": ac_note,
         "initiative": mods["dex"],
         "speed": speed,
+        "warnings": warnings,
+        "attuned": list(a.attuned),
+        "used_items": [{"index": i, "name": name_of("equipment", i) if rules.get("equipment", i) else name_of("magic-items", i),
+                        "quantity": q} for i, q in a.used.items()],
+        "max_attuned": MAX_ATTUNED,
         "passive_perception": 10 + perception,
         "saving_throws": [x["key"] for x in abilities if x["save_proficient"]],
         "skills": skill_rows,
@@ -1006,6 +1198,43 @@ def sheet(a: Analysis) -> dict:
         "equipped": {"armor": armor["index"] if armor else None, "shield": shield["index"] if shield else None},
         "notes": {k: (b.get("notes") or {}).get(k, "") for k in NOTE_FIELDS},
     }
+
+
+ARMOR_PROFICIENCY = {"Light": "light-armor", "Medium": "medium-armor", "Heavy": "heavy-armor", "Shield": "shields"}
+
+
+def _gear_warnings(a: Analysis, scores: dict, armor: dict | None, shield: dict | None, speed: int,
+                   inventory: list[dict]) -> tuple[list[dict], int]:
+    """Rule-bending gear (house rule: warn, don't block), with the SRD's penalty. Returns (warnings, speed)."""
+    warnings = []
+    profs = set(a.proficiencies)
+    for worn_item in (armor, shield):
+        if not worn_item:
+            continue
+        needed = {ARMOR_PROFICIENCY[worn_item["armor_category"]], worn_item["index"], "all-armor"}
+        if worn_item["armor_category"] == "Shield":
+            needed.discard("all-armor")
+        if not needed & profs:
+            warnings.append({"code": "armor-proficiency", "message":
+                             f"You aren't proficient with {worn_item['name']}: you have disadvantage on every ability check, "
+                             f"saving throw and attack roll that uses Strength or Dexterity, and you can't cast spells."})
+    if armor and armor.get("str_minimum") and scores["str"] < armor["str_minimum"]:
+        speed -= 10
+        warnings.append({"code": "armor-strength", "message":
+                         f"{armor['name']} needs Strength {armor['str_minimum']}. With Strength {scores['str']} "
+                         f"your speed drops by 10 feet."})
+    if len(a.attuned) > MAX_ATTUNED:
+        warnings.append({"code": "attunement", "message":
+                         f"You're attuned to {len(a.attuned)} magic items. The rules allow {MAX_ATTUNED} at a time: "
+                         f"end attunement to one before its magic works."})
+    carried = sum((i["weight"] or 0) * i["quantity"] for i in inventory)
+    capacity = scores["str"] * 15
+    if carried > capacity:
+        speed = 5
+        warnings.append({"code": "encumbrance", "message":
+                         f"You're carrying {carried:g} lb, more than your capacity of {capacity} lb (Strength × 15). "
+                         f"Over that you can only push or drag the load, and your speed drops to 5 feet."})
+    return warnings, speed
 
 
 def _armor_class(mods: dict, armor: dict | None, shield: dict | None, features: set[str]) -> tuple[int, str]:
@@ -1042,7 +1271,8 @@ def _inventory(a: Analysis) -> list[dict]:
         out.append({
             "index": index, "name": item["name"], "quantity": qty, "kind": "equipment",
             "category": item["equipment_category"]["name"], "weight": item.get("weight"),
-            "equipped": index in equipped, "added": a.added.get(index, 0), "rarity": None, "attunement": None,
+            "equipped": index in equipped, "added": a.added.get(index, 0), "given": a.given.get(index, 0),
+            "used": a.used.get(index, 0), "rarity": None, "attunement": None, "attuned": False,
             "contents": [{"name": c["item"]["name"], "quantity": c["quantity"]} for c in item.get("contents", [])],
         })
     for index, qty in a.magic_items.items():
@@ -1051,8 +1281,9 @@ def _inventory(a: Analysis) -> list[dict]:
         out.append({
             "index": index, "name": item["name"], "quantity": qty, "kind": "magic",
             "category": item["equipment_category"]["name"], "weight": None,
-            "equipped": False, "added": qty, "rarity": item["rarity"]["name"],
-            "attunement": "(requires attunement" in first, "contents": [],
+            "equipped": False, "added": a.added.get(index, 0), "given": a.given.get(index, 0),
+            "used": a.used.get(index, 0), "rarity": item["rarity"]["name"],
+            "attunement": "(requires attunement" in first, "attuned": index in a.attuned, "contents": [],
         })
     out.sort(key=lambda i: (not i["equipped"], i["kind"] == "magic", i["category"], i["name"]))
     return out
@@ -1121,6 +1352,9 @@ def _spell_sheet(a: Analysis, mods: dict, prof: int) -> dict | None:
                 add(i, "Mystic Arcanum")
     for i in valid.get("spells:spellbook", []):
         add(i, "Spellbook", prepared=i in prepared)
+    if a.cls and a.cls["index"] == "wizard":
+        for i in a.granted_spells:
+            add(i, "Copied into your spellbook", prepared=i in prepared)
     if a.cls and a.cls["index"] in PREPARED_CASTERS - {"wizard"}:
         for i in prepared:
             add(i, "Prepared")

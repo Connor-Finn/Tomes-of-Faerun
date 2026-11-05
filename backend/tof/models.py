@@ -265,6 +265,7 @@ class Campaign(db.Model):
     party: Mapped[Party | None] = relationship(back_populates="campaigns")
     instances: Mapped[list[CharacterInstance]] = relationship(
         back_populates="campaign", cascade="all, delete-orphan", order_by="CharacterInstance.id")
+    rules: Mapped[CampaignRules | None] = relationship(cascade="all, delete-orphan", uselist=False)
 
 
 class SessionEntry(db.Model):
@@ -367,6 +368,8 @@ class CharacterInstance(db.Model):
     following: Mapped[InstanceRoadmap | None] = relationship(
         back_populates="instance", cascade="all, delete-orphan", uselist=False)
     backup: Mapped[InstanceBackup | None] = relationship(cascade="all, delete-orphan", uselist=False)
+    progress: Mapped[InstanceProgress | None] = relationship(cascade="all, delete-orphan", uselist=False)
+    notes: Mapped[list[InstanceNote]] = relationship(cascade="all, delete-orphan", order_by="InstanceNote.id.desc()")
 
 
 class PublishedCharacter(db.Model):
@@ -527,3 +530,55 @@ class PublishedRoadmap(db.Model):
     name: Mapped[str] = mapped_column(String(60))
     start_level: Mapped[int] = mapped_column(default=1)
     levels: Mapped[dict] = mapped_column(db.JSON)
+
+
+class AbilityRoll(db.Model):
+    """Six ability scores the app rolled for a player (4d6, drop the lowest).
+
+    House rule (Connor, 2026-11-04): the app rolls once and the result is locked. A player has at
+    most one unused roll; asking again returns it, so refreshing the builder never rerolls. Saving a
+    character with it ties the roll to that character for good.
+    """
+    __tablename__ = "ability_rolls"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    rolls: Mapped[list] = mapped_column(db.JSON)
+    dice: Mapped[list] = mapped_column(db.JSON)   # the four dice behind each score, for showing the roll
+    character_id: Mapped[int | None] = mapped_column(ForeignKey("characters.id", ondelete="SET NULL"), index=True)
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
+
+
+class CampaignRules(db.Model):
+    """The house rules a DM sets for one campaign. Its own table so existing databases pick it up."""
+    __tablename__ = "campaign_rules"
+
+    campaign_id: Mapped[int] = mapped_column(ForeignKey("campaigns.id", ondelete="CASCADE"), primary_key=True)
+    levelling: Mapped[str] = mapped_column(String(10), default="manual")   # manual | xp
+    hp_methods: Mapped[list] = mapped_column(db.JSON)                       # any of average, roll, max
+
+
+class InstanceProgress(db.Model):
+    """A campaign character's progress: XP, the DM's overrides and grants, and its level history."""
+    __tablename__ = "instance_progress"
+
+    instance_id: Mapped[int] = mapped_column(ForeignKey("character_instances.id", ondelete="CASCADE"), primary_key=True)
+    xp: Mapped[int] = mapped_column(default=0)
+    # The level the DM set the character to. Level-ups up to it are owed, whatever the levelling mode.
+    target_level: Mapped[int | None]
+    # Spells the DM granted. Wizards copy them into the spellbook; everyone else just knows them.
+    granted_spells: Mapped[list] = mapped_column(db.JSON, default=list)
+    # The hit die rolled for the next level-up, kept until it's taken so it can't be rerolled.
+    hp_roll: Mapped[dict | None] = mapped_column(db.JSON)
+    # The build at each level before it levelled up ({"3": build}), so the DM can set a level back.
+    history: Mapped[dict] = mapped_column(db.JSON, default=dict)
+
+
+class InstanceNote(db.Model):
+    """A note the DM sent to a player about their campaign character. They build up as a list."""
+    __tablename__ = "instance_notes"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    instance_id: Mapped[int] = mapped_column(ForeignKey("character_instances.id", ondelete="CASCADE"), index=True)
+    body: Mapped[str] = mapped_column(String(2000))
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)

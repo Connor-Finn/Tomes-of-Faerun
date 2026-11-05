@@ -5,7 +5,7 @@
  * one character, which becomes an *instance*: its own copy that levels up and takes damage in that
  * campaign while the base character in the Character Manager stays untouched.
  */
-import type { BuildMode, CharacterSummary, CheckResult, Build } from "./characters";
+import type { BuildMode, CharacterSummary, CheckResult, Build, HpMethod } from "./characters";
 import type { CollectionSummary } from "./bestiary";
 import type { RoadmapSummary } from "./roadmaps";
 
@@ -36,8 +36,59 @@ export interface InstanceSummary {
   max_hp: number;
   current_hp: number;
   temp_hp: number;
-  dm_note: string;
+  /** The newest note the DM sent about this character. */
+  latest_note: InstanceNote | null;
+  xp: number;
+  /** Level-ups earned (XP crossed, or the DM raised the level) but not taken yet. */
+  levels_owed: number;
   updated_at: string;
+}
+
+export interface InstanceNote {
+  id: number;
+  body: string;
+  sent_at: string;
+}
+
+export type Levelling = "manual" | "xp";
+
+/** The house rules a DM sets for a campaign. */
+export interface CampaignRules {
+  levelling: Levelling;
+  levelling_label: string;
+  hp_methods: HpMethod[];
+}
+
+export interface InstanceProgress {
+  xp: number;
+  xp_level: number;
+  this_level_xp: number;
+  next_level_xp: number | null;
+  target_level: number | null;
+  levels_owed: number;
+  can_level_up: boolean;
+  level_up_blocked: string | null;
+  granted_spells: { index: string; name: string; level: number; copied: boolean }[];
+  /** The lowest level the DM can set the character back to. */
+  lowest_level: number;
+}
+
+export interface LevelUpPreview {
+  allowed: boolean;
+  reason: string | null;
+  level: number;
+  build?: Build;
+  roadmap?: { id: number; name: string } | null;
+  subclass_unlocks?: boolean;
+  open_slots?: string[];
+  changes?: string[];
+  swaps?: Record<string, string>;
+  hp?: {
+    hit_die: number;
+    con_modifier: number;
+    rolled: number | null;
+    methods: { value: HpMethod; label: string; die: number | null; gain: number | null }[];
+  };
 }
 
 /** What other players see of someone's character: just enough to know who's at the table. */
@@ -79,6 +130,7 @@ export interface Encounter {
 
 export interface Campaign extends CampaignSummary {
   role: "dm" | "player";
+  rules: CampaignRules;
   players: (Person & { instance: InstanceSummary | InstanceGlimpse | null })[];
   sessions: SessionEntry[];
   my_instance: InstanceSummary | null;
@@ -116,6 +168,9 @@ export interface InstanceDetail extends CheckResult {
     build: Build;
     campaign: { id: number; name: string };
     base_character: CharacterSummary | null;
+    rules: CampaignRules;
+    progress: InstanceProgress;
+    notes: InstanceNote[];
     /** Only on your own character: */
     following?: InstanceFollowing | null;
     backup?: InstanceBackup | null;
@@ -162,6 +217,8 @@ export const DM_CAMPAIGNS_PATH = "/dm/campaigns/campaigns";
 export const DM_PARTIES_PATH = "/dm/campaigns/parties";
 export const PLAYER_CAMPAIGNS_PATH = "/play/campaigns/current";
 export const PLAYER_PARTIES_PATH = "/play/campaigns/parties";
+
+export const HP_METHOD_LABELS: Record<HpMethod, string> = { average: "Average", roll: "Roll", max: "Maximum" };
 
 export const dmCampaignPath = (id: number, page = "overview") => `/dm/campaigns/c/${id}/${page}`;
 export const playerCampaignPath = (id: number, page = "overview") => `/play/campaigns/c/${id}/${page}`;

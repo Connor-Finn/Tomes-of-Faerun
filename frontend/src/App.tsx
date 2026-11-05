@@ -15,6 +15,7 @@ import { SECTIONS } from "./lib/sections";
 import { Builder } from "./pages/characters/Builder";
 import { CharacterTome } from "./pages/characters/CharacterTome";
 import { CampaignTome } from "./pages/campaigns/CampaignTome";
+import { LevelUpPage } from "./pages/campaigns/LevelUp";
 
 export function App() {
   return (
@@ -54,7 +55,7 @@ export function App() {
         <Route path="dm/campaigns/c/:id/:page?" element={<RequireAuth><CampaignTome mode="dm" /></RequireAuth>} />
         <Route path="dm/campaigns/c/:id/:page/:sub" element={<RequireAuth><CampaignTome mode="dm" /></RequireAuth>} />
         <Route path="play/campaigns/c/:id/:page?" element={<RequireAuth><CampaignTome mode="player" /></RequireAuth>} />
-        <Route path="play/campaigns/c/:campaignId/character/edit" element={<RequireAuth><Builder /></RequireAuth>} />
+        <Route path="play/campaigns/c/:campaignId/character/level-up" element={<RequireAuth><LevelUpPage /></RequireAuth>} />
 
         {/* Developer tools */}
         <Route path="mailbox" element={<Mailbox />} />

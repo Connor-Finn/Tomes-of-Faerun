@@ -1,16 +1,16 @@
 """Level roadmaps, following them in a campaign, backup copies, and publishing with roadmaps.
 
 The story: Mira plans her fighter's level-ups as a roadmap in the Character Manager. In a campaign
-her character can follow that roadmap: switching onto it rewrites the levelling choices to the
-roadmap's (items stay), and each level-up after that takes the roadmap's next level. Before a big
-change she can keep one backup copy per campaign, and swap back to it.
+her character can follow that roadmap, as long as the roadmap agrees with the picks she already made
+(earlier picks are locked in a campaign), and each level-up after that takes the roadmap's next level.
+She can keep one backup copy per campaign, and swap back to it.
 """
 from __future__ import annotations
 
 import pytest
 from playwright.sync_api import APIRequestContext, Playwright
 
-from builds import aldric, autofill, blank
+from builds import aldric, autofill, blank, level_up
 from conftest import API_HEADERS
 
 pytestmark = pytest.mark.api
@@ -102,11 +102,7 @@ def bring(ctx: APIRequestContext, table: dict, character: dict) -> dict:
 
 
 def level_up_by_hand(ctx: APIRequestContext, table: dict, level: int, prefer: dict | None = None) -> dict:
-    current = ctx.get(f"{table['url']}/instance").json()["instance"]["build"]
-    build = autofill(checker(ctx), with_subclass({**current, "level": level}), prefer)
-    response = ctx.patch(f"{table['url']}/instance", data={"build": build})
-    assert response.ok, response.text()
-    return response.json()
+    return level_up(ctx, table["url"], level, prefer)
 
 
 # ------------------------------------------------------------------ access
@@ -296,23 +292,45 @@ def test_follow_a_roadmap_and_level_up_with_it(table: dict, player_api: APIReque
     assert listed["followed_by"] == [{"campaign": {"id": table["campaign"]["id"], "name": "The Whispering Dead"}, "level": 3}]
 
 
-def test_switching_onto_a_roadmap_rewrites_choices_and_keeps_items(table: dict, player_api: APIRequestContext):
+def new_wizard(ctx: APIRequestContext) -> dict:
+    return new_character(ctx, autofill(checker(ctx), blank(**{"class": "wizard"})), name="Elara")
+
+
+ROADMAP_SPELLS = {"spells:spellbook": ["sleep", "shield"]}
+HAND_SPELLS = {"spells:spellbook": ["thunderwave", "unseen-servant"]}
+
+
+def test_a_roadmap_that_disagrees_with_earlier_picks_cant_be_followed(table: dict, player_api: APIRequestContext):
+    wizard = new_wizard(player_api)
+    roadmap = new_roadmap(player_api, wizard["id"])
+    opened = player_api.get(f"/api/roadmaps/{roadmap['id']}/levels/2").json()["character"]["build"]
+    keep = {"spells:spellbook": opened["choices"]["spells:spellbook"] + ROADMAP_SPELLS["spells:spellbook"]}
+    plan(player_api, roadmap["id"], 2, prefer=keep)
+    bring(player_api, table, wizard)
+    level_up_by_hand(player_api, table, 2, prefer=HAND_SPELLS)
+    response = player_api.put(f"{table['url']}/instance/roadmap", data={"roadmap_id": roadmap["id"]})
+    assert response.status == 400
+    assert "Earlier picks are locked in a campaign" in response.json()["error"]
+    assert response.json()["errors"][0]["field"] == "spells:spellbook"
+
+
+def test_switching_onto_a_matching_roadmap_keeps_items(table: dict, user_api: APIRequestContext,
+                                                         player_api: APIRequestContext):
+    style = {"feature:fighter-fighting-style": ["fighter-fighting-style-defense"]}
     character = new_character(player_api)
     roadmap = new_roadmap(player_api, character["id"])
-    plan_to(player_api, roadmap["id"], 1, 2, prefer={"feature:fighter-fighting-style": ["fighter-fighting-style-defense"]})
-    bring(player_api, table, character)
-    # Level up by hand first, with a different pick, and pick up a bag of holding
-    current = player_api.get(f"{table['url']}/instance").json()["instance"]["build"]
-    player_api.patch(f"{table['url']}/instance", data={"build": {**current, "items": {"bag-of-holding": 1}}})
-    level_up_by_hand(player_api, table, 2)
+    plan_to(player_api, roadmap["id"], 1, 3, prefer=style)
+    instance = bring(player_api, table, character)
+    user_api.post(f"{table['url']}/instances/{instance['id']}/items", data={"item": "bag-of-holding"})
+    level_up_by_hand(player_api, table, 2, prefer=style)
 
-    followed = player_api.put(f"{table['url']}/instance/roadmap", data={"roadmap_id": roadmap["id"]}).json()
-    build = followed["instance"]["build"]
-    planned = player_api.get(f"/api/roadmaps/{roadmap['id']}/levels/2").json()["character"]["build"]
-    levelling = {k: v for k, v in planned["choices"].items() if not k.startswith("equipment:")}
-    assert {k: v for k, v in build["choices"].items() if not k.startswith("equipment:")} == levelling
-    assert build["items"] == {"bag-of-holding": 1}
-    assert build["level"] == 2
+    followed = player_api.put(f"{table['url']}/instance/roadmap", data={"roadmap_id": roadmap["id"]})
+    assert followed.ok, followed.text()
+    build = followed.json()["instance"]["build"]
+    assert build["given"] == {"bag-of-holding": 1} and build["level"] == 2
+    up = player_api.post(f"{table['url']}/instance/roadmap/level-up", data={"hp_method": "average"})
+    assert up.ok, up.text()
+    assert up.json()["instance"]["subclass"] == "Champion" and up.json()["instance"]["build"]["given"] == {"bag-of-holding": 1}
 
 
 def test_a_roadmap_that_doesnt_reach_the_instances_level_cant_be_followed(table: dict, player_api: APIRequestContext):
@@ -338,16 +356,38 @@ def test_only_the_characters_own_roadmaps_can_be_followed(table: dict, player_ap
 
 
 def test_levelling_by_hand_stops_following(table: dict, player_api: APIRequestContext):
+    wizard = new_wizard(player_api)
+    roadmap = new_roadmap(player_api, wizard["id"])
+    opened = player_api.get(f"/api/roadmaps/{roadmap['id']}/levels/2").json()["character"]["build"]
+    plan(player_api, roadmap["id"], 2,
+         prefer={"spells:spellbook": opened["choices"]["spells:spellbook"] + ROADMAP_SPELLS["spells:spellbook"]})
+    bring(player_api, table, wizard)
+    assert player_api.put(f"{table['url']}/instance/roadmap", data={"roadmap_id": roadmap["id"]}).ok
+    # The player swaps the roadmap's two new spells for their own
+    preview = player_api.get(f"{table['url']}/instance/level-up").json()["level_up"]
+    book = [s for s in preview["build"]["choices"]["spells:spellbook"] if s not in ROADMAP_SPELLS["spells:spellbook"]]
+    build = {**preview["build"], "subclass": "evocation",
+             "choices": {**preview["build"]["choices"], "spells:spellbook": book + HAND_SPELLS["spells:spellbook"]}}
+    response = player_api.post(f"{table['url']}/instance/level-up", data={"build": build, "hp_method": "average"})
+    assert response.ok, response.text()
+    result = response.json()
+    assert result["instance"]["following"] is None
+    assert result["message"].endswith("Choosing by hand stopped following “Champion route”.")
+    # Level 2 was chosen differently, so the roadmap no longer matches and can't be followed again
+    assert player_api.put(f"{table['url']}/instance/roadmap", data={"roadmap_id": roadmap["id"]}).status == 400
+
+
+def test_taking_the_roadmaps_picks_keeps_following(table: dict, player_api: APIRequestContext):
     character = new_character(player_api)
     roadmap = new_roadmap(player_api, character["id"])
-    plan(player_api, roadmap["id"], 2)
+    plan_to(player_api, roadmap["id"], 1, 3)
     bring(player_api, table, character)
     player_api.put(f"{table['url']}/instance/roadmap", data={"roadmap_id": roadmap["id"]})
-    result = level_up_by_hand(player_api, table, 2)
-    assert result["instance"]["following"] is None
-    assert result["message"] == "Aldric Vane stopped following the roadmap “Champion route”."
-    # Hit points alone don't count as choosing by hand
-    player_api.put(f"{table['url']}/instance/roadmap", data={"roadmap_id": roadmap["id"]})
+    preview = player_api.get(f"{table['url']}/instance/level-up").json()["level_up"]
+    assert preview["roadmap"]["name"] == "Champion route"
+    up = player_api.post(f"{table['url']}/instance/level-up", data={"build": preview["build"], "hp_method": "average"})
+    assert up.ok, up.text()
+    assert up.json()["instance"]["following"]["name"] == "Champion route"
     hp = player_api.patch(f"{table['url']}/instance", data={"current_hp": 3}).json()
     assert hp["instance"]["following"]["name"] == "Champion route"
 
@@ -416,10 +456,9 @@ def test_one_backup_per_campaign_and_overwriting_needs_a_yes(table: dict, player
 def test_back_up_while_switching_onto_a_roadmap(table: dict, player_api: APIRequestContext):
     character = new_character(player_api)
     roadmap = new_roadmap(player_api, character["id"])
-    plan(player_api, roadmap["id"], 2, prefer={"feature:fighter-fighting-style": ["fighter-fighting-style-defense"]})
+    plan(player_api, roadmap["id"], 2)
     bring(player_api, table, character)
-    level_up_by_hand(player_api, table, 2)
-    by_hand = player_api.get(f"{table['url']}/instance").json()["instance"]["build"]
+    before = player_api.get(f"{table['url']}/instance").json()["instance"]["build"]
 
     followed = player_api.put(f"{table['url']}/instance/roadmap", data={"roadmap_id": roadmap["id"], "backup": True})
     assert followed.ok
@@ -430,10 +469,10 @@ def test_back_up_while_switching_onto_a_roadmap(table: dict, player_api: APIRequ
     assert conflict.status == 409
     assert player_api.get(f"{table['url']}/instance").json()["instance"]["following"] is None   # nothing changed
 
-    # Restoring brings back the hand-picked choices, and stops following
+    # Restoring brings back the copy from before following, which wasn't following anything
     player_api.put(f"{table['url']}/instance/roadmap", data={"roadmap_id": roadmap["id"]})
     restored = player_api.post(f"{table['url']}/instance/backup/restore").json()["instance"]
-    assert restored["build"]["choices"] == by_hand["choices"]
+    assert restored["build"]["choices"] == before["choices"]
     assert restored["following"] is None
     # ...and the swapped-out backup remembers it was following, so restoring again follows again
     again = player_api.post(f"{table['url']}/instance/backup/restore").json()["instance"]

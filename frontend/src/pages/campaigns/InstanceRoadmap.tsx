@@ -11,8 +11,9 @@ type Detail = InstanceDetail & { message?: string };
 /**
  * A campaign › Your character: follow one of the character's level roadmaps.
  *
- * Switching onto a roadmap rewrites the levelling choices from level 1 to the roadmap's, keeping
- * items and hit points, after a confirmation that offers to keep the old choices as the backup.
+ * Earlier picks are locked in a campaign, so a roadmap can only be followed when its plan for the
+ * character's level matches the choices already made. From then on, Level Up fills in the roadmap's
+ * picks for each new level. Following asks first, and offers to keep a backup copy.
  */
 export function RoadmapPanel({
   campaign,
@@ -58,14 +59,13 @@ export function RoadmapPanel({
           </p>
           <div className="row wrap">
             {following.next_level ? (
-              <button
-                type="button"
-                className="btn primary small"
-                disabled={busy}
-                onClick={() => void send("post", `${url}/level-up`)}
-              >
-                Level up to {following.next_level} with the roadmap
-              </button>
+              i.progress.can_level_up ? (
+                <Link to={`/play/campaigns/c/${campaign.id}/character/level-up`} className="btn primary small">
+                  Level up to {following.next_level} with the roadmap
+                </Link>
+              ) : (
+                <p className="hint">The roadmap plans level {following.next_level} for when it's ready.</p>
+              )
             ) : (
               <p className="hint" data-testid="roadmap-ends">
                 The roadmap ends at level {following.end_level}.{" "}
@@ -140,9 +140,9 @@ export function RoadmapPanel({
           }}
         >
           <p>
-            {i.name}'s levelling choices in {campaign.name} are rewritten from level 1 to match the roadmap at level {i.level}
-            : subclass, skills, spells and ability score improvements. Items and hit points stay as they are. Later level-ups
-            take the roadmap's next level.
+            From now on, Level Up fills in the roadmap's picks for each new level of {i.name} in {campaign.name}. Earlier
+            picks are locked in a campaign, so the roadmap has to match the choices {i.name} already made up to level{" "}
+            {i.level}. Items and hit points stay as they are.
           </p>
           <label className="check">
             <input type="checkbox" checked={keepBackup} onChange={(e) => setKeepBackup(e.target.checked)} />
